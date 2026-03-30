@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Platform Apps — MakinaRocks Design System</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body { font-family: 'Pretendard', -apple-system, sans-serif; background: #fff; color: #101828; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useContext, createContext } = React;
+
+// ─────────────────────────────────────────
+// Design Tokens
+// ─────────────────────────────────────────
+const colorLight = {
+  bgPrimary:                    "#ffffff",
+  bgSecondary:                  "#f9fafb",
+  bgTertiary:                   "#f3f4f6",
+  bgInteractiveRunwaySelected:  "#eff6ff",
+  bgDrawxSelected:              "#eef2ff",
+  borderSecondary:              "#d1d5dc",
+  borderTertiary:               "#f3f4f6",
+  textPrimary:                  "#101828",
+  textSecondary:                "#364153",
+  textTertiary:                 "#6a7282",
+  textDisabled:                 "#99a1af",
+  textInverse:                  "#ffffff",
+  textInteractiveSecondary:     "#4a5565",
+  textInteractiveRunway:        "#155dfc",
+  iconSecondary:                "#364153",
+  iconDisabled:                 "#99a1af",
+  iconInteractiveRunway:        "#155dfc",
+  avatarDefault:                "#dc2626",
+  borderDrawxFocusRing:         "#4f39f6",
+};
+
+const colorDark = {
+  bgPrimary:                    "#101828",
+  bgSecondary:                  "#1e2939",
+  bgTertiary:                   "#2d3748",
+  bgInteractiveRunwaySelected:  "#162456",
+  bgDrawxSelected:              "#1e1b4b",
+  borderSecondary:              "#364153",
+  borderTertiary:               "#1e2939",
+  textPrimary:                  "#f9fafb",
+  textSecondary:                "#d1d5dc",
+  textTertiary:                 "#99a1af",
+  textDisabled:                 "#4a5565",
+  textInverse:                  "#ffffff",
+  textInteractiveSecondary:     "#99a1af",
+  textInteractiveRunway:        "#51a2ff",
+  iconSecondary:                "#d1d5dc",
+  iconDisabled:                 "#4a5565",
+  iconInteractiveRunway:        "#51a2ff",
+  avatarDefault:                "#dc2626",
+  borderDrawxFocusRing:         "#7c6af5",
+};
+
+const ColorContext = createContext(colorLight);
+const useColor = () => useContext(ColorContext);
+
+// ─────────────────────────────────────────
+// SVG Icons (from icons/svg/*.svg)
+// ─────────────────────────────────────────
+const IconWorkspace = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path fillRule="evenodd" clipRule="evenodd" d="M16.3217 1.99756C16.5667 1.9976 16.8103 2.04543 17.0366 2.13916C17.2628 2.23293 17.4689 2.37129 17.642 2.54443C17.815 2.71757 17.9527 2.9238 18.0463 3.1499C18.1399 3.37609 18.1879 3.61899 18.1879 3.86377V8.98682C18.1879 9.23168 18.14 9.47444 18.0463 9.70068C17.9526 9.92691 17.8151 10.133 17.642 10.3062C17.4689 10.4793 17.2627 10.6167 17.0366 10.7104C16.8103 10.8042 16.5666 10.853 16.3217 10.853H12.7504V12.7095H18.8286C20.1155 12.7097 21.1574 13.753 21.1577 15.0376V16.5532C21.1578 16.5596 21.1586 16.5664 21.1586 16.5728C21.1586 16.5789 21.1578 16.5852 21.1577 16.5913V21.2534C21.1573 21.6672 20.8215 22.0032 20.4077 22.0034C19.9936 22.0034 19.658 21.6673 19.6577 21.2534V17.3228H4.3432V21.2534C4.34287 21.6672 4.00705 22.0032 3.5932 22.0034C3.17919 22.0034 2.84354 21.6673 2.8432 21.2534V15.0376C2.84344 13.7533 3.88426 12.7095 5.17035 12.7095H11.2504V10.853H7.67719C6.64671 10.853 5.81114 10.0173 5.81097 8.98682V3.86377C5.81097 3.36892 6.00797 2.89437 6.35785 2.54443C6.70778 2.19453 7.18232 1.99757 7.67719 1.99756H16.3217ZM5.17035 14.2095C4.71445 14.2095 4.34344 14.58 4.3432 15.0376V15.8228H19.6577V15.0376C19.6574 14.5805 19.2862 14.2097 18.8286 14.2095H5.17035ZM7.67719 3.49756C7.58015 3.49757 7.48703 3.53638 7.4184 3.60498C7.34982 3.67361 7.31097 3.76675 7.31097 3.86377V8.98682C7.31114 9.18883 7.47514 9.35301 7.67719 9.35303H16.3217C16.3697 9.35298 16.418 9.34306 16.4623 9.32471C16.5065 9.30636 16.5467 9.27938 16.5805 9.24561C16.6144 9.21165 16.6422 9.17082 16.6606 9.12646C16.6788 9.08227 16.6879 9.03464 16.6879 8.98682V3.86377C16.6879 3.81581 16.6789 3.76746 16.6606 3.72314C16.6422 3.67894 16.6143 3.63885 16.5805 3.60498C16.5467 3.57121 16.5064 3.54425 16.4623 3.52588C16.418 3.50753 16.3697 3.49761 16.3217 3.49756H7.67719Z" fill={color}/>
+  </svg>
+);
+
+const IconPlatform = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path fillRule="evenodd" clipRule="evenodd" d="M12 1.25195C12.4827 1.25195 12.957 1.37882 13.375 1.62012L13.374 1.62109L20.3721 5.61914L20.375 5.62012C20.7231 5.8211 21.0203 6.09713 21.25 6.4248C21.2983 6.47174 21.3445 6.52286 21.3799 6.58398C21.411 6.63777 21.4317 6.69481 21.4482 6.75195C21.6452 7.13765 21.7495 7.5646 21.75 7.99902V16.001C21.7495 16.4831 21.6221 16.9566 21.3809 17.374C21.1395 17.7915 20.7926 18.1388 20.375 18.3799L20.3721 18.3809L13.374 22.3789L13.375 22.3799C13.0692 22.5564 12.7331 22.6706 12.3857 22.7197C12.2727 22.7881 12.1417 22.8301 12 22.8301C11.858 22.8301 11.7265 22.7883 11.6133 22.7197C11.2663 22.6705 10.9305 22.5562 10.625 22.3799L3.62793 18.3809L3.625 18.3799C3.20738 18.1388 2.86047 17.7915 2.61914 17.374C2.3779 16.9566 2.25055 16.4831 2.25 16.001V7.99902L2.25586 7.81836C2.28083 7.44541 2.38115 7.08097 2.55176 6.74805C2.56829 6.6921 2.5906 6.63669 2.62109 6.58398C2.65633 6.52318 2.701 6.47156 2.74902 6.4248C2.97872 6.09692 3.27672 5.8212 3.625 5.62012L3.62793 5.61914L10.625 1.62109C11.043 1.37975 11.5173 1.25195 12 1.25195ZM3.75 15.999L3.76074 16.1621C3.78221 16.3241 3.83572 16.4807 3.91797 16.623C4.02763 16.8128 4.18525 16.9705 4.375 17.0801L11.25 21.0088V12.4414L3.75 8.10352V15.999ZM12.75 12.4424V21.0088L19.625 17.0801C19.8148 16.9705 19.9724 16.8128 20.082 16.623C20.1915 16.4336 20.2496 16.2188 20.25 16V8.10449L12.75 12.4424ZM12 2.75195C11.7807 2.75195 11.565 2.80933 11.375 2.91895L11.3721 2.9209L4.53711 6.8252L12 11.1426L19.4619 6.82617L12.6279 2.9209L12.625 2.91895C12.435 2.80933 12.2193 2.75195 12 2.75195Z" fill={color}/>
+  </svg>
+);
+
+const IconUser = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M16 14.25C17.2598 14.25 18.4676 14.7508 19.3584 15.6416C20.2492 16.5324 20.75 17.7402 20.75 19V21C20.75 21.4142 20.4142 21.75 20 21.75C19.5858 21.75 19.25 21.4142 19.25 21V19C19.25 18.138 18.9073 17.3116 18.2979 16.7021C17.6884 16.0927 16.862 15.75 16 15.75H8C7.13805 15.75 6.31164 16.0927 5.70215 16.7021C5.09266 17.3116 4.75 18.138 4.75 19V21C4.75 21.4142 4.41421 21.75 4 21.75C3.58579 21.75 3.25 21.4142 3.25 21V19C3.25 17.7402 3.7508 16.5324 4.6416 15.6416C5.5324 14.7508 6.74022 14.25 8 14.25H16Z" fill={color}/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M12 2.25C14.6234 2.25 16.75 4.37665 16.75 7C16.75 9.62335 14.6234 11.75 12 11.75C9.37665 11.75 7.25 9.62335 7.25 7C7.25 4.37665 9.37665 2.25 12 2.25ZM12 3.75C10.2051 3.75 8.75 5.20507 8.75 7C8.75 8.79493 10.2051 10.25 12 10.25C13.7949 10.25 15.25 8.79493 15.25 7C15.25 5.20507 13.7949 3.75 12 3.75Z" fill={color}/>
+  </svg>
+);
+
+const IconMonitoring = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M10.6284 4.73199C10.9438 3.86083 12.2084 3.88944 12.4839 4.77399L12.5083 4.86481L15.2349 17.2398L16.5874 14.0923C16.889 13.3906 17.5804 12.9361 18.3442 12.9361H20.1538C20.568 12.9361 20.9038 13.2719 20.9038 13.6861C20.9038 14.1003 20.568 14.4361 20.1538 14.4361H18.3442C18.1799 14.4361 18.0312 14.5341 17.9663 14.6851L15.978 19.3111C15.6013 20.1878 14.3223 20.067 14.1167 19.1353L11.4985 7.25543L9.95166 13.0201C9.7274 13.8551 8.96964 14.4361 8.10498 14.4361H3.84619C3.43201 14.4361 3.09624 14.1003 3.09619 13.6861C3.09622 13.2719 3.432 12.9361 3.84619 12.9361H8.10498C8.29103 12.9361 8.45416 12.8111 8.50244 12.6314L10.6001 4.82184L10.6284 4.73199Z" fill={color}/>
+  </svg>
+);
+
+const IconSetting = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path fillRule="evenodd" clipRule="evenodd" d="M12.0035 7.37557C14.5172 7.37586 16.6253 9.31519 16.6256 11.7926C16.6256 14.2702 14.5173 16.2102 12.0035 16.2105C9.4894 16.2105 7.38142 14.2704 7.38142 11.7926C7.38171 9.315 9.48957 7.37557 12.0035 7.37557ZM12.0035 8.87557C10.2402 8.87557 8.88171 10.2191 8.88142 11.7926C8.88142 13.3662 10.2401 14.7105 12.0035 14.7105C13.7666 14.7102 15.1256 13.3661 15.1256 11.7926C15.1253 10.2193 13.7665 8.87585 12.0035 8.87557Z" fill={color}/>
+    <path fillRule="evenodd" clipRule="evenodd" d="M10.1236 2.07479C11.3526 1.86442 12.6456 1.86437 13.8746 2.07479H13.8775L13.9332 2.08553L13.9342 2.08455C14.1814 2.12705 14.4163 2.23188 14.6129 2.39119L14.6939 2.46248L14.7711 2.54061C14.9179 2.70204 15.027 2.8962 15.0865 3.10897L15.1119 3.21639L15.3775 4.58065C15.9686 4.82386 16.526 5.13088 17.0445 5.49568L18.4644 5.01717L18.4674 5.01619C18.7051 4.93731 18.9594 4.91998 19.2047 4.96443L19.3092 4.9869L19.4117 5.01717C19.6479 5.09627 19.8629 5.23502 20.0328 5.42342L20.0728 5.46736L20.0748 5.46932C20.8984 6.3865 21.5415 7.43951 21.9713 8.57772L21.9742 8.58553L21.9908 8.63045L22.0259 8.73494C22.0983 8.98219 22.1005 9.24552 22.0308 9.49568C21.9512 9.78112 21.783 10.0312 21.5572 10.2144L20.4449 11.1129C20.4786 11.4074 20.4976 11.7054 20.4976 12.0015C20.4976 12.2979 20.4786 12.5949 20.4449 12.8892L21.5572 13.7887L21.5592 13.7906C22.0194 14.1664 22.2071 14.7901 21.9986 15.3599L21.9791 15.4137L21.9752 15.4224C21.5434 16.5588 20.9062 17.6042 20.0797 18.5289L20.0767 18.5318L20.0377 18.5758L20.0367 18.5748C19.8429 18.7903 19.5902 18.9413 19.314 19.0123C19.0365 19.0834 18.7423 19.073 18.4703 18.982L18.4683 18.981L17.0484 18.5025C16.5292 18.8674 15.9717 19.1731 15.3814 19.4166L15.1158 20.7818C15.0588 21.0728 14.9106 21.3357 14.6988 21.5357C14.4876 21.735 14.2219 21.8639 13.94 21.9127L13.941 21.9137L13.8814 21.9234L13.8785 21.9244C12.6386 22.1357 11.3684 22.1357 10.1285 21.9244L10.1246 21.9234L10.065 21.9137C9.78362 21.8647 9.51906 21.7346 9.30817 21.5357C9.09605 21.3356 8.94723 21.0741 8.89021 20.7828L8.62165 19.4088C8.03587 19.1668 7.48312 18.8611 6.96931 18.4986L5.53767 18.981L5.53474 18.982C5.26309 19.0722 4.96989 19.0822 4.69294 19.0113C4.41591 18.9402 4.16168 18.7901 3.96735 18.5738L3.92927 18.5318L3.92829 18.5299C3.09989 17.6077 2.46323 16.5579 2.03181 15.4224L2.0279 15.4137L2.01228 15.3678C1.90698 15.0909 1.89249 14.7884 1.97224 14.5025C2.05195 14.2172 2.21915 13.9678 2.44489 13.7847L3.56989 12.8726C3.53723 12.5829 3.5201 12.2906 3.52009 11.9996C3.5201 11.71 3.53708 11.4176 3.56989 11.1265L2.44196 10.2144L2.43903 10.2125C1.97861 9.83682 1.79104 9.21161 2.00446 8.63924L2.024 8.58553L2.02692 8.57674C2.45809 7.44003 3.10081 6.38789 3.92243 5.47029L3.92536 5.46736L3.96442 5.42342C4.15842 5.20768 4.41258 5.05777 4.68903 4.9869L4.79353 4.96346C5.03939 4.9191 5.29471 4.93741 5.53278 5.01717L6.9654 5.49959C7.47887 5.13866 8.03295 4.83336 8.61677 4.59041L8.8863 3.21639L8.91169 3.10897C8.9811 2.86081 9.11759 2.63769 9.30329 2.46248L9.38532 2.39119C9.58183 2.23205 9.81686 2.12697 10.064 2.08455L10.1207 2.07479H10.1236ZM13.6217 3.5533C12.5602 3.37156 11.438 3.37161 10.3765 3.5533L10.3756 3.55232L10.3472 3.55721L10.0103 5.28377L9.92829 5.70174L9.5279 5.84529C8.81163 6.10275 8.14556 6.46901 7.55622 6.92732L7.23786 7.1744L5.06403 6.44197L5.03767 6.47322L5.03669 6.47225C4.34136 7.24936 3.80033 8.13696 3.4361 9.09041L5.1861 10.5045L5.10993 10.939C5.0494 11.2868 5.0201 11.6446 5.02009 11.9996C5.0201 12.3592 5.04975 12.716 5.10993 13.0582L5.1861 13.4928L3.44099 14.9078C3.80641 15.8629 4.34258 16.7463 5.04157 17.525L5.06989 17.5562L7.24274 16.8238L7.5611 17.0719C8.0813 17.4769 8.65213 17.8073 9.26423 18.0523L9.52888 18.1519L9.9322 18.2945L10.0152 18.7154L10.3521 20.441L10.3795 20.4459C11.3183 20.6059 12.2784 20.6254 13.2222 20.5054L13.6265 20.4459L13.6539 20.441L14.0718 18.3043L14.4742 18.1607C15.1967 17.9036 15.8624 17.5395 16.4595 17.0758L16.7779 16.8287L17.1588 16.9566L18.9361 17.5562L18.9644 17.525C19.663 16.7427 20.1973 15.8647 20.5621 14.9137L19.1724 13.7877L18.8306 13.5113L18.9049 13.0777C18.966 12.7228 18.9976 12.3606 18.9976 12.0015C18.9976 11.6421 18.9658 11.2775 18.9049 10.9254L18.8306 10.4918L20.5601 9.09041C20.1971 8.13573 19.656 7.24787 18.9586 6.47127L18.9322 6.44197L16.773 7.17049L16.4556 6.92342C15.8575 6.45889 15.1917 6.09296 14.4713 5.83846L14.067 5.69588L13.649 3.55721L13.6217 3.5533Z" fill={color}/>
+  </svg>
+);
+
+const IconBook = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path fillRule="evenodd" clipRule="evenodd" d="M14.6543 3.76556C16.5449 3.13537 19.1273 2.94577 21.6904 4.77631C21.8871 4.91704 22.0038 5.14483 22.0039 5.38666V19.9287C22.0037 20.2093 21.8472 20.4672 21.5977 20.5956C21.3481 20.7239 21.0468 20.7019 20.8184 20.539C18.7248 19.0438 16.6475 19.0422 15.0654 19.4189C14.2694 19.6085 13.6023 19.8937 13.1357 20.1318C12.9035 20.2503 12.7225 20.3563 12.6025 20.4306C12.5428 20.4676 12.4979 20.4968 12.4697 20.5156C12.4559 20.5248 12.4461 20.5322 12.4404 20.5361C12.4382 20.5375 12.4354 20.5374 12.4346 20.538C12.1743 20.723 11.8256 20.7241 11.5654 20.539C11.5644 20.5385 11.5617 20.5375 11.5596 20.5361C11.5538 20.5321 11.5438 20.5246 11.5303 20.5156C11.5021 20.4967 11.457 20.4675 11.3975 20.4306C11.2774 20.3563 11.0963 20.2502 10.8643 20.1318C10.3976 19.8937 9.73052 19.6084 8.93457 19.4189C7.35246 19.0423 5.27519 19.0436 3.18164 20.539C2.95331 20.7017 2.65275 20.7237 2.40332 20.5956C2.15402 20.4671 1.99634 20.2091 1.99609 19.9287V5.38666C1.99623 5.14471 2.11372 4.91702 2.31055 4.77631C4.87355 2.94567 7.45509 3.13548 9.3457 3.76556C10.2849 4.07865 11.063 4.50253 11.6055 4.84564C11.754 4.9396 11.8867 5.02808 12 5.10736C12.1133 5.028 12.2458 4.93973 12.3945 4.84564C12.9369 4.50251 13.715 4.07875 14.6543 3.76556ZM8.87109 5.18939C7.37174 4.68972 5.45209 4.53834 3.49609 5.7851V18.5976C5.62392 17.5202 7.68917 17.5797 9.28223 17.9589C10.0628 18.1448 10.7327 18.4101 11.25 18.6533V6.41693C11.1351 6.33339 10.985 6.2279 10.8037 6.11322C10.3341 5.81619 9.66614 5.45444 8.87109 5.18939ZM20.5039 5.7851C18.5479 4.53861 16.6282 4.68963 15.1289 5.18939C14.3337 5.45453 13.6658 5.81618 13.1963 6.11322C13.0148 6.22804 12.865 6.33335 12.75 6.41693V18.6533C13.2673 18.4101 13.9371 18.1449 14.7178 17.9589C16.3107 17.5796 18.3761 17.5204 20.5039 18.5976V5.7851Z" fill={color}/>
+  </svg>
+);
+
+const IconMoon = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const IconSun = ({ size = 20, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="4" stroke={color} strokeWidth="1.5"/>
+    <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
+// ─────────────────────────────────────────
+// NavItem — mirrors NavItem.tsx API
+// ─────────────────────────────────────────
+function NavItem({ label, icon, selected = false, disabled = false, onClick }) {
+  const color = useColor();
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+
+  const bg = selected
+    ? color.bgInteractiveRunwaySelected
+    : pressed || hovered ? color.bgSecondary
+    : "transparent";
+
+  const textColor = selected ? color.textInteractiveRunway
+    : disabled ? color.textDisabled
+    : color.textSecondary;
+
+  const iconColor = selected ? color.iconInteractiveRunway
+    : disabled ? color.iconDisabled
+    : color.iconSecondary;
+
+  return (
+    <div
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-current={selected ? "page" : undefined}
+      onClick={() => !disabled && onClick?.()}
+      onMouseEnter={() => !disabled && setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => !disabled && setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        width: "100%", padding: 12,
+        borderRadius: 8,
+        backgroundColor: bg,
+        color: textColor,
+        fontFamily: "'Pretendard', sans-serif",
+        fontSize: 14, fontWeight: 500, lineHeight: "16px",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.6 : 1,
+        userSelect: "none",
+        transition: "background-color 0.1s ease",
+        boxSizing: "border-box",
+      }}
+    >
+      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, flexShrink: 0, color: iconColor }}>
+        {icon}
+      </span>
+      <span style={{ flex: "1 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// Sidebar — mirrors Sidebar.tsx API
+// ─────────────────────────────────────────
+function Sidebar({ items, selectedKey, onSelect, header, footer, width = 200 }) {
+  const color = useColor();
+  return (
+    <aside style={{
+      display: "flex", flexDirection: "column",
+      width, minWidth: width, height: "100%",
+      backgroundColor: color.bgPrimary,
+      borderRight: `1px solid ${color.borderSecondary}`,
+      boxSizing: "border-box",
+    }}>
+      {header && (
+        <div style={{ flexShrink: 0, borderBottom: `1px solid ${color.borderTertiary}` }}>
+          {header}
+        </div>
+      )}
+      <nav style={{
+        flex: "1 1 auto", overflowX: "hidden", overflowY: "auto",
+        padding: "8px 12px",
+        display: "flex", flexDirection: "column", gap: 2,
+      }}>
+        {items.map(item => (
+          <NavItem
+            key={item.key}
+            label={item.label}
+            icon={item.icon}
+            selected={item.key === selectedKey}
+            disabled={item.disabled}
+            onClick={() => onSelect?.(item.key)}
+          />
+        ))}
+      </nav>
+      {footer && (
+        <div style={{ padding: "8px 12px 16px", flexShrink: 0, borderTop: `1px solid ${color.borderTertiary}` }}>
+          {footer}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+// ─────────────────────────────────────────
+// GlobalNav — mirrors GlobalNav.tsx API
+// ─────────────────────────────────────────
+function GlobalNav({ breadcrumbs = [], actions = [], user }) {
+  const color = useColor();
+
+  return (
+    <header style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      width: "100%", height: 48,
+      padding: "0 24px",
+      backgroundColor: color.bgPrimary,
+      borderBottom: `1px solid ${color.borderSecondary}`,
+      boxSizing: "border-box", flexShrink: 0,
+    }}>
+      {/* Left: breadcrumbs */}
+      <nav aria-label="breadcrumb" style={{ display: "flex", alignItems: "center", flex: "1 0 0", minWidth: 0 }}>
+        {breadcrumbs.map((item, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && (
+              <span aria-hidden="true" style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 24, height: 24, flexShrink: 0, opacity: 0.7,
+              }}>
+                <span style={{ display: "block", width: 1, height: 16, backgroundColor: color.iconSecondary, borderRadius: 16, transform: "rotate(30deg)" }} />
+              </span>
+            )}
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "4px 8px",
+              opacity: i === breadcrumbs.length - 1 ? 1 : 0.7,
+              cursor: item.onClick ? "pointer" : "default",
+              borderRadius: 4,
+              flexShrink: 0,
+            }} onClick={item.onClick}>
+              {item.icon && (
+                <span style={{ display: "inline-flex", alignItems: "center", width: 24, height: 24 }}>
+                  {item.icon}
+                </span>
+              )}
+              <span style={{
+                fontFamily: "'Pretendard', sans-serif", fontSize: 14,
+                fontWeight: i === breadcrumbs.length - 1 ? 500 : 400,
+                lineHeight: "16px", color: color.textInteractiveSecondary,
+                whiteSpace: "nowrap",
+              }}>{item.label}</span>
+            </span>
+          </React.Fragment>
+        ))}
+      </nav>
+
+      {/* Right: actions + user */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {actions.map(action => (
+          <GnbActionBtn key={action.key} action={action} />
+        ))}
+        {user && <GnbUserBtn user={user} />}
+      </div>
+    </header>
+  );
+}
+
+function GnbActionBtn({ action }) {
+  const color = useColor();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label={action.label}
+      onClick={action.onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 32, height: 32, borderRadius: 24,
+        border: "none", backgroundColor: hovered ? color.bgTertiary : "transparent",
+        cursor: "pointer", padding: 0, flexShrink: 0,
+        transition: "background 0.12s", color: color.iconSecondary,
+      }}
+    >{action.icon}</button>
+  );
+}
+
+function GnbUserBtn({ user }) {
+  return (
+    <button type="button" aria-label="User profile" onClick={user.onClick} style={{
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      width: 32, height: 32, border: "none", background: "none",
+      cursor: "pointer", padding: 0, flexShrink: 0,
+    }}>
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 24, height: 24, borderRadius: "50%",
+        backgroundColor: user.avatarColor ?? "#dc2626",
+        fontFamily: "'Pretendard', sans-serif",
+        fontSize: 10, fontWeight: 600, lineHeight: 1,
+        color: "#ffffff", flexShrink: 0, letterSpacing: "0.02em",
+      }}>
+        {user.initial ?? "?"}
+      </span>
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────
+// GridCard Component
+// ─────────────────────────────────────────
+function GridCard({ title, desc, logo, checked, focused: forceFocused, onClick }) {
+  const color = useColor();
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const [focused, setFocused] = useState(false);
+
+  const isActive = focused || forceFocused;
+
+  const getBg = () => {
+    if (checked && pressed)  return "#bedbff";
+    if (checked && hovered)  return "#dbeafe";
+    if (checked)             return color.bgDrawxSelected;
+    if (pressed)             return color.bgTertiary;
+    if (hovered)             return color.bgSecondary;
+    return "transparent";
+  };
+
+  return (
+    <div
+      role="button" tabIndex={0} aria-pressed={checked}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } }}
+      style={{
+        display: "flex", flexDirection: "column", gap: 24,
+        padding: "8px 8px 24px",
+        borderRadius: 16,
+        backgroundColor: getBg(),
+        outline: isActive ? `2px solid ${color.borderDrawxFocusRing}` : "none",
+        outlineOffset: isActive ? -2 : 0,
+        cursor: "pointer",
+        transition: "background-color 0.15s ease",
+        overflow: "hidden",
+        userSelect: "none",
+      }}
+    >
+      {/* Image slot — 293:195 (matches GridCard component) */}
+      <div style={{
+        width: "100%", aspectRatio: "293 / 195",
+        backgroundColor: color.bgSecondary,
+        borderRadius: 16, overflow: "hidden",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        <img src={logo} alt={title}
+          style={{ maxWidth: "65%", maxHeight: "41%", objectFit: "contain", display: "block" }}
+          onError={e => { e.target.style.display = "none"; }}
+        />
+      </div>
+
+      {/* Text */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+        <p style={{
+          fontFamily: "'Pretendard', sans-serif", fontSize: 16, fontWeight: 600,
+          lineHeight: "24px", color: color.textPrimary,
+          overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", margin: 0,
+        }}>{title}</p>
+        {desc && (
+          <p style={{
+            fontFamily: "'Pretendard', sans-serif", fontSize: 14, fontWeight: 400,
+            lineHeight: "20px", color: color.textSecondary, margin: 0,
+            display: "-webkit-box", WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical", overflow: "hidden",
+          }}>{desc}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// App Data
+// ─────────────────────────────────────────
+const APPS = [
+  { id: "gitea",      title: "Gitea",          desc: "Git repository hosting and code review",                                                                  logo: "icons/platform/svg/gitea.svg" },
+  { id: "airflow",    title: "Apache Airflow",  desc: "Data workflow orchestration dashboard",                                                                   logo: "icons/platform/svg/airflow.svg" },
+  { id: "argocd",     title: "ArgoCD",          desc: "GitOps continuous delivery platform",                                                                    logo: "icons/platform/svg/argocd.svg" },
+  { id: "litellm",    title: "LLM Playground",  desc: "Interact with deployed language models",                                                                 logo: "icons/platform/svg/LiteLLM.svg", logoDark: "icons/platform/svg/LiteLLM-dark.svg" },
+  { id: "chat",       title: "Chat",            desc: "Team collaboration chat workspace",                                                                      logo: "icons/platform/svg/chat.svg" },
+  { id: "mlflow",     title: "MLflow",          desc: "ML experiment and model lifecycle management",                                                           logo: "icons/platform/svg/mlflow.svg", logoDark: "icons/platform/svg/mlflow-dark.svg" },
+  { id: "jupyterhub", title: "JupyterHub",      desc: "Platform that enables multiple users to access and manage Jupyter Notebook environments on a shared server", logo: "icons/platform/svg/jupyterhub.svg" },
+  { id: "postgresql", title: "PostgreSQL",      desc: "An open-source relational database management system known for reliability and scalability",              logo: "icons/platform/svg/postgre.svg" },
+  { id: "langfuse",   title: "Langfuse",        desc: "An observability and analytics tool for logging, tracing, and evaluating LLM applications",              logo: "icons/platform/svg/langfuse.svg" },
+];
+
+const NAV_ITEMS = [
+  { key: "projects",     label: "Projects",      icon: <IconWorkspace /> },
+  { key: "platform",     label: "Platform Apps", icon: <IconPlatform /> },
+  { key: "members",      label: "Members",       icon: <IconUser /> },
+  { key: "monitoring",   label: "Monitoring",    icon: <IconMonitoring /> },
+  { key: "settings",     label: "Settings",      icon: <IconSetting /> },
+];
+
+// ─────────────────────────────────────────
+// App
+// ─────────────────────────────────────────
+function App() {
+  const [isDark, setIsDark] = useState(false);
+  const [selectedNav, setSelectedNav] = useState("platform");
+  const [checkedId, setCheckedId] = useState("chat");
+  const theme = isDark ? colorDark : colorLight;
+
+  return (
+    <ColorContext.Provider value={theme}>
+      <div style={{ display: "flex", height: "100vh", backgroundColor: theme.bgPrimary, overflow: "hidden" }}>
+
+        {/* ── Sidebar (LNB) ── */}
+        <Sidebar
+          items={NAV_ITEMS}
+          selectedKey={selectedNav}
+          onSelect={setSelectedNav}
+          width={200}
+          header={
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px" }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 6,
+                backgroundColor: "#dc2626",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#fff", fontSize: 14, fontWeight: 700, flexShrink: 0,
+              }}>D</div>
+              <span style={{
+                fontFamily: "'Pretendard', sans-serif", fontSize: 14, fontWeight: 600,
+                color: theme.textPrimary,
+                overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+              }}>Data studio</span>
+            </div>
+          }
+          footer={
+            <span style={{ fontFamily: "'Pretendard', sans-serif", fontSize: 12, color: theme.textDisabled }}>
+              Runway v1.5.0
+            </span>
+          }
+        />
+
+        {/* ── Right panel ── */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+          {/* ── GlobalNav (GNB) ── */}
+          <GlobalNav
+            breadcrumbs={[{ label: "Platform Apps" }]}
+            actions={[
+              {
+                key: "theme",
+                label: isDark ? "Light mode" : "Dark mode",
+                icon: isDark ? <IconSun size={20} color={theme.iconSecondary} /> : <IconMoon size={20} color={theme.iconSecondary} />,
+                onClick: () => setIsDark(d => !d),
+              },
+              {
+                key: "docs",
+                label: "Documentation",
+                icon: <IconBook size={20} color={theme.iconSecondary} />,
+              },
+            ]}
+            user={{ initial: "GH", avatarColor: "#dc2626" }}
+          />
+
+          {/* ── Main content ── */}
+          <main style={{ flex: 1, overflow: "auto", padding: "32px 40px" }}>
+            {/* Page header */}
+            <div style={{ marginBottom: 32 }}>
+              <h1 style={{
+                fontFamily: "'Pretendard', sans-serif", fontSize: 24, fontWeight: 700,
+                lineHeight: "32px", color: theme.textPrimary, marginBottom: 8,
+              }}>Platform apps</h1>
+              <p style={{
+                fontFamily: "'Pretendard', sans-serif", fontSize: 14, fontWeight: 400,
+                lineHeight: "20px", color: theme.textSecondary,
+              }}>A platform service managed through Runway.</p>
+            </div>
+
+            {/* Grid — 5 columns */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "32px 16px" }}>
+              {APPS.map(app => (
+                <GridCard
+                  key={app.id}
+                  title={app.title}
+                  desc={app.desc}
+                  logo={isDark && app.logoDark ? app.logoDark : app.logo}
+                  checked={checkedId === app.id}
+                  focused={app.id === "litellm" && checkedId !== "litellm"}
+                  onClick={() => setCheckedId(id => id === app.id ? null : app.id)}
+                />
+              ))}
+            </div>
+          </main>
+        </div>
+      </div>
+    </ColorContext.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

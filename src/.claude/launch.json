@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo-app",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd ../demo && npx vite --port 5173"],
+      "port": 5173
+    }
+  ]
+}

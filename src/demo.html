@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MakinaRocks Design System — Form Controls</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      background: #f9fafb;
+      color: #101828;
+      min-height: 100vh;
+    }
+
+    .page-header {
+      background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 24px 48px;
+    }
+
+    .page-header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #101828;
+      letter-spacing: -0.01em;
+    }
+
+    .page-header p {
+      font-size: 13px;
+      color: #6a7282;
+      margin-top: 4px;
+    }
+
+    .page-content {
+      padding: 40px 48px;
+      max-width: 900px;
+    }
+
+    .section {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #f3f4f6;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .section-header h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #101828;
+    }
+
+    .section-header span {
+      font-size: 12px;
+      color: #9da4ad;
+      font-family: 'Source Code Pro', monospace;
+      background: #f3f4f6;
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+
+    .section-body {
+      padding: 24px;
+    }
+
+    .row-group {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .state-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .state-label {
+      font-size: 12px;
+      color: #6a7282;
+      width: 120px;
+      flex-shrink: 0;
+    }
+
+    .items {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .divider {
+      height: 1px;
+      background: #f3f4f6;
+      margin: 4px 0;
+    }
+
+    .interactive-section {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 20px 24px;
+    }
+
+    .interactive-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #9da4ad;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+
+    .interactive-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .output-box {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      font-family: 'Source Code Pro', monospace;
+      font-size: 12px;
+      color: #6a7282;
+    }
+
+    .output-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+
+    .output-key { color: #9da4ad; }
+    .output-val { color: #155dfc; font-weight: 500; }
+    .output-val.true { color: #00a63e; }
+    .output-val.false { color: #e7000b; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>MakinaRocks Design System</h1>
+  <p>Form Controls — Checkbox · Radio · Switch</p>
+</div>
+
+<div class="page-content" id="root"></div>
+
+<script type="text/babel">
+const { useState, useId, useRef } = React;
+
+// ─────────────────────────────────────────
+// Design Tokens
+// ─────────────────────────────────────────
+const checkboxTokens = {
+  color: {
+    bg: { primary: "#ffffff", interactive: { "runway-primary": "#155dfc" }, disabled: "#e5e7eb" },
+    border: { interactive: { secondary: "#e5e7eb", "runway-primary": "#155dfc" }, hovered: "#9da4ad", disabled: "#d1d5dc" },
+    text: { primary: "#101828", disabled: "#99a1af" },
+    icon: { inverse: "#ffffff", disabled: "#99a1af" },
+  },
+  border: { radius: { md: 4 } },
+  font: { family: "'Pretendard', sans-serif", size: { md: 14 }, lineHeight: { md: "16px" }, weight: { medium: 500 } },
+  spacing: { 8: 8 },
+};
+
+const radioTokens = {
+  color: {
+    bg: { primary: "#ffffff", interactive: { "runway-primary": "#155dfc" }, disabled: "#e5e7eb" },
+    border: { interactive: { secondary: "#e5e7eb" }, hovered: "#9da4ad", disabled: "#d1d5dc" },
+    text: { primary: "#101828", disabled: "#99a1af" },
+  },
+  font: { family: "'Pretendard', sans-serif", size: { md: 14 }, lineHeight: { md: "16px" }, weight: { medium: 500 } },
+  spacing: { 8: 8 },
+};
+
+const switchTokens = {
+  color: {
+    bg: {
+      primary: "#ffffff",
+      interactive: { "runway-primary": "#155dfc", "runway-primary-hovered": "#1447e6", "runway-primary-pressed": "#193cb8" },
+      unchecked: "#9da4ad", uncheckedHovered: "#6a7282", uncheckedPressed: "#4a5565",
+      disabled: "#d1d5dc",
+    },
+    text: { primary: "#101828", disabled: "#99a1af" },
+  },
+  font: { family: "'Pretendard', sans-serif", size: { md: 14 }, lineHeight: { md: "16px" }, weight: { medium: 500 } },
+  spacing: { 8: 8 },
+};
+
+// ─────────────────────────────────────────
+// Checkbox Component
+// ─────────────────────────────────────────
+function CheckIcon() {
+  return (
+    <svg width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
+      <path d="M1 3.5L3.8 6.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IndeterminateIcon() {
+  return (
+    <svg width="10" height="2" viewBox="0 0 10 2" fill="none" aria-hidden="true">
+      <path d="M1 1H9" stroke="white" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Checkbox({ checked: controlledChecked, defaultChecked = false, onChange, label, disabled = false, id: externalId, style }) {
+  const autoId = useId();
+  const id = externalId ?? autoId;
+  const [internalChecked, setInternalChecked] = useState(defaultChecked);
+  const isControlled = controlledChecked !== undefined;
+  const checked = isControlled ? controlledChecked : internalChecked;
+  const isChecked = checked === true;
+  const isIndeterminate = checked === "indeterminate";
+  const [hovered, setHovered] = useState(false);
+  const t = checkboxTokens;
+
+  const handleChange = () => {
+    if (disabled) return;
+    const next = isChecked || isIndeterminate ? false : true;
+    if (!isControlled) setInternalChecked(next);
+    onChange?.(next);
+  };
+
+  const getBoxBg = () => {
+    if (disabled) return t.color.bg.disabled;
+    if (isChecked || isIndeterminate) return t.color.bg.interactive["runway-primary"];
+    return t.color.bg.primary;
+  };
+  const getBoxBorder = () => {
+    if (disabled) return t.color.border.disabled;
+    if (isChecked || isIndeterminate) return t.color.bg.interactive["runway-primary"];
+    if (hovered) return t.color.border.hovered;
+    return t.color.border.interactive.secondary;
+  };
+
+  return (
+    <label
+      htmlFor={id}
+      style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: disabled ? "not-allowed" : "pointer", ...style }}
+      onMouseEnter={() => !disabled && setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <input
+        type="checkbox"
+        id={id}
+        checked={isChecked}
+        disabled={disabled}
+        onChange={handleChange}
+        aria-checked={isIndeterminate ? "mixed" : isChecked}
+        style={{ position: "absolute", opacity: 0, width: 0, height: 0, margin: 0 }}
+      />
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 16, height: 16, flexShrink: 0,
+          borderRadius: 4, border: `1px solid ${getBoxBorder()}`,
+          backgroundColor: getBoxBg(), cursor: disabled ? "not-allowed" : "pointer",
+          transition: "background-color 0.15s ease, border-color 0.15s ease", boxSizing: "border-box",
+        }}
+      >
+        {isIndeterminate && <IndeterminateIcon />}
+        {isChecked && <CheckIcon />}
+      </span>
+      {label && (
+        <span style={{
+          fontFamily: t.font.family, fontSize: t.font.size.md,
+          fontWeight: t.font.weight.medium, lineHeight: t.font.lineHeight.md,
+          color: disabled ? t.color.text.disabled : t.color.text.primary, userSelect: "none",
+        }}>{label}</span>
+      )}
+    </label>
+  );
+}
+
+// ─────────────────────────────────────────
+// Radio Component
+// ─────────────────────────────────────────
+function Radio({ checked = false, onChange, name, value, label, disabled = false, id: externalId, style }) {
+  const autoId = useId();
+  const id = externalId ?? autoId;
+  const [hovered, setHovered] = useState(false);
+  const t = radioTokens;
+
+  const getBg = () => {
+    if (disabled) return t.color.bg.disabled;
+    if (checked) return t.color.bg.interactive["runway-primary"];
+    return t.color.bg.primary;
+  };
+  const getBorder = () => {
+    if (disabled) return t.color.border.disabled;
+    if (checked) return t.color.bg.interactive["runway-primary"];
+    if (hovered) return t.color.border.hovered;
+    return t.color.border.interactive.secondary;
+  };
+
+  return (
+    <label
+      htmlFor={id}
+      style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: disabled ? "not-allowed" : "pointer", ...style }}
+      onMouseEnter={() => !disabled && setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <input
+        type="radio"
+        id={id} name={name} value={value} checked={checked} disabled={disabled}
+        onChange={(e) => onChange?.(e.target.checked)}
+        style={{ position: "absolute", opacity: 0, width: 0, height: 0, margin: 0 }}
+      />
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 16, height: 16, flexShrink: 0, borderRadius: "50%",
+          border: `1px solid ${getBorder()}`, backgroundColor: getBg(),
+          cursor: disabled ? "not-allowed" : "pointer",
+          transition: "background-color 0.15s ease, border-color 0.15s ease", boxSizing: "border-box",
+        }}
+      >
+        {checked && (
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            backgroundColor: disabled ? t.color.text.disabled : "#ffffff", flexShrink: 0,
+          }} />
+        )}
+      </span>
+      {label && (
+        <span style={{
+          fontFamily: t.font.family, fontSize: t.font.size.md,
+          fontWeight: t.font.weight.medium, lineHeight: t.font.lineHeight.md,
+          color: disabled ? t.color.text.disabled : t.color.text.primary, userSelect: "none",
+        }}>{label}</span>
+      )}
+    </label>
+  );
+}
+
+// ─────────────────────────────────────────
+// Switch Component
+// ─────────────────────────────────────────
+function Switch({ checked: controlledChecked, defaultChecked = false, onChange, label, labelPosition = "right", disabled = false, id: externalId, style }) {
+  const autoId = useId();
+  const id = externalId ?? autoId;
+  const [internalChecked, setInternalChecked] = useState(defaultChecked);
+  const isControlled = controlledChecked !== undefined;
+  const checked = isControlled ? controlledChecked : internalChecked;
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const t = switchTokens;
+
+  const handleChange = () => {
+    if (disabled) return;
+    const next = !checked;
+    if (!isControlled) setInternalChecked(next);
+    onChange?.(next);
+  };
+
+  const getTrackBg = () => {
+    if (disabled) return t.color.bg.disabled;
+    if (checked) {
+      if (pressed) return t.color.bg.interactive["runway-primary-pressed"];
+      if (hovered) return t.color.bg.interactive["runway-primary-hovered"];
+      return t.color.bg.interactive["runway-primary"];
+    } else {
+      if (pressed) return t.color.bg.uncheckedPressed;
+      if (hovered) return t.color.bg.uncheckedHovered;
+      return t.color.bg.unchecked;
+    }
+  };
+
+  return (
+    <label
+      htmlFor={id}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 8,
+        cursor: disabled ? "not-allowed" : "pointer",
+        flexDirection: labelPosition === "left" ? "row-reverse" : "row",
+        ...style,
+      }}
+      onMouseEnter={() => !disabled && setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => !disabled && setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+    >
+      <input
+        type="checkbox" role="switch" id={id}
+        checked={checked} disabled={disabled} onChange={handleChange}
+        aria-checked={checked}
+        style={{ position: "absolute", opacity: 0, width: 0, height: 0, margin: 0 }}
+      />
+      <span
+        aria-hidden="true"
+        style={{
+          position: "relative", display: "inline-flex", alignItems: "center",
+          width: 48, height: 24, borderRadius: 9999, backgroundColor: getTrackBg(),
+          padding: 4, boxSizing: "border-box",
+          cursor: disabled ? "not-allowed" : "pointer",
+          transition: "background-color 0.2s ease", flexShrink: 0,
+        }}
+      >
+        <span style={{
+          position: "absolute", width: 16, height: 16, borderRadius: "50%",
+          backgroundColor: t.color.bg.primary,
+          top: 4, left: checked ? "calc(100% - 20px)" : 4,
+          transition: "left 0.2s ease",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+        }} />
+      </span>
+      {label && (
+        <span style={{
+          fontFamily: t.font.family, fontSize: t.font.size.md,
+          fontWeight: t.font.weight.medium, lineHeight: t.font.lineHeight.md,
+          color: disabled ? t.color.text.disabled : t.color.text.primary, userSelect: "none",
+        }}>{label}</span>
+      )}
+    </label>
+  );
+}
+
+// ─────────────────────────────────────────
+// Demo App
+// ─────────────────────────────────────────
+function App() {
+  // Interactive state
+  const [cbChecked, setCbChecked] = useState(false);
+  const [cbIndet, setCbIndet] = useState("indeterminate");
+  const [radioVal, setRadioVal] = useState("option1");
+  const [sw1, setSw1] = useState(false);
+  const [sw2, setSw2] = useState(true);
+
+  return (
+    <div>
+
+      {/* ── CHECKBOX ── */}
+      <div className="section">
+        <div className="section-header">
+          <h2>Checkbox</h2>
+          <span>{"<Checkbox />"}</span>
+        </div>
+        <div className="section-body">
+          <div className="row-group">
+
+            <div className="state-row">
+              <div className="state-label">Default</div>
+              <div className="items">
+                <Checkbox label="Unchecked" />
+                <Checkbox label="Checked" defaultChecked={true} />
+                <Checkbox label="Indeterminate" checked="indeterminate" />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">Disabled</div>
+              <div className="items">
+                <Checkbox label="Unchecked" disabled />
+                <Checkbox label="Checked" checked={true} disabled />
+                <Checkbox label="Indeterminate" checked="indeterminate" disabled />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">No label</div>
+              <div className="items">
+                <Checkbox />
+                <Checkbox defaultChecked={true} />
+                <Checkbox checked="indeterminate" />
+                <Checkbox disabled />
+                <Checkbox checked={true} disabled />
+              </div>
+            </div>
+
+          </div>
+
+          {/* Interactive */}
+          <div style={{ marginTop: 24 }}>
+            <div className="interactive-section">
+              <div className="interactive-title">Interactive</div>
+              <div className="interactive-grid">
+                <Checkbox
+                  label="클릭해보세요"
+                  checked={cbChecked}
+                  onChange={setCbChecked}
+                />
+                <Checkbox
+                  label="Indeterminate toggle"
+                  checked={cbIndet}
+                  onChange={(v) => setCbIndet(v ? true : "indeterminate")}
+                />
+              </div>
+              <div className="output-box">
+                <div className="output-row">
+                  <span className="output-key">checked</span>
+                  <span className={`output-val ${cbChecked}`}>{String(cbChecked)}</span>
+                </div>
+                <div className="output-row">
+                  <span className="output-key">indeterminate</span>
+                  <span className={`output-val`} style={{ color: cbIndet === "indeterminate" ? "#f0a000" : cbIndet ? "#00a63e" : "#e7000b" }}>{String(cbIndet)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── RADIO ── */}
+      <div className="section">
+        <div className="section-header">
+          <h2>Radio</h2>
+          <span>{"<Radio />"}</span>
+        </div>
+        <div className="section-body">
+          <div className="row-group">
+
+            <div className="state-row">
+              <div className="state-label">Default</div>
+              <div className="items">
+                <Radio label="Unselected" name="demo-default" value="a" />
+                <Radio label="Selected" name="demo-default" value="b" checked={true} onChange={() => {}} />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">Disabled</div>
+              <div className="items">
+                <Radio label="Unselected" disabled />
+                <Radio label="Selected" checked={true} disabled onChange={() => {}} />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">No label</div>
+              <div className="items">
+                <Radio name="no-label" />
+                <Radio name="no-label" checked={true} onChange={() => {}} />
+                <Radio disabled />
+                <Radio checked={true} disabled onChange={() => {}} />
+              </div>
+            </div>
+
+          </div>
+
+          {/* Interactive */}
+          <div style={{ marginTop: 24 }}>
+            <div className="interactive-section">
+              <div className="interactive-title">Interactive — Radio Group</div>
+              <div style={{ display: "flex", gap: 24 }}>
+                {["option1", "option2", "option3"].map((v) => (
+                  <Radio
+                    key={v}
+                    name="interactive-radio"
+                    value={v}
+                    label={v === "option1" ? "Option 1" : v === "option2" ? "Option 2" : "Option 3"}
+                    checked={radioVal === v}
+                    onChange={() => setRadioVal(v)}
+                  />
+                ))}
+              </div>
+              <div className="output-box">
+                <div className="output-row">
+                  <span className="output-key">selected</span>
+                  <span className="output-val" style={{ color: "#155dfc" }}>{radioVal}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── SWITCH ── */}
+      <div className="section">
+        <div className="section-header">
+          <h2>Switch</h2>
+          <span>{"<Switch />"}</span>
+        </div>
+        <div className="section-body">
+          <div className="row-group">
+
+            <div className="state-row">
+              <div className="state-label">Default</div>
+              <div className="items">
+                <Switch label="Off" />
+                <Switch label="On" defaultChecked={true} />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">Disabled</div>
+              <div className="items">
+                <Switch label="Off" disabled />
+                <Switch label="On" checked={true} disabled onChange={() => {}} />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">Label left</div>
+              <div className="items">
+                <Switch label="라벨 왼쪽" labelPosition="left" />
+                <Switch label="라벨 왼쪽 (On)" labelPosition="left" defaultChecked={true} />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="state-row">
+              <div className="state-label">No label</div>
+              <div className="items">
+                <Switch />
+                <Switch defaultChecked={true} />
+                <Switch disabled />
+                <Switch checked={true} disabled onChange={() => {}} />
+              </div>
+            </div>
+
+          </div>
+
+          {/* Interactive */}
+          <div style={{ marginTop: 24 }}>
+            <div className="interactive-section">
+              <div className="interactive-title">Interactive</div>
+              <div style={{ display: "flex", gap: 32 }}>
+                <Switch label="Notifications" checked={sw1} onChange={setSw1} />
+                <Switch label="Dark mode" checked={sw2} onChange={setSw2} />
+              </div>
+              <div className="output-box">
+                <div className="output-row">
+                  <span className="output-key">Notifications</span>
+                  <span className={`output-val ${sw1}`}>{String(sw1)}</span>
+                </div>
+                <div className="output-row">
+                  <span className="output-key">Dark mode</span>
+                  <span className={`output-val ${sw2}`}>{String(sw2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
