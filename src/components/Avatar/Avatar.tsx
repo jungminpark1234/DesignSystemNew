@@ -210,6 +210,19 @@ export const AvatarGroup: React.FC<AvatarGroupProps> = ({
   );
 };
 
+/**
+ * Derive avatar color index (1–26) from a 2-letter initial string.
+ * First char selects a base offset, second char shifts within 26 hues.
+ * Consistent: same initials always produce the same color.
+ */
+export function getAvatarColorFromInitial(initial: string): AvatarColor {
+  const upper = initial.toUpperCase();
+  const a = upper.charCodeAt(0) - 65; // 0-25 for A-Z
+  const b = upper.length > 1 ? upper.charCodeAt(1) - 65 : 0;
+  const idx = ((a + b) % 26) + 1;
+  return idx as AvatarColor;
+}
+
 Avatar.displayName = "Avatar";
 AvatarGroup.displayName = "AvatarGroup";
 export default Avatar;

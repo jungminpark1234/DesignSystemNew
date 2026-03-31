@@ -29,6 +29,8 @@ export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
     const [hovered, setHovered] = useState(false);
     const [pressed, setPressed] = useState(false);
     const [focused, setFocused] = useState(false);
+    const [usingMouse, setUsingMouse] = useState(false);
+    const showFocusRing = focused && !usingMouse;
 
     const getBg = () => {
       if (checked && pressed) return `var(--ds-bg-interactive-runway-selected, ${colorBg.interactive.runwaySelectedPressed})`;
@@ -47,7 +49,7 @@ export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
       padding: `${spacing[8]} ${spacing[8]} ${spacing[24]}`,
       borderRadius: borderRadius["2xl"],
       backgroundColor: getBg(),
-      outline: focused ? `2px solid ${colorBorder.interactive.runwayPrimary}` : "none",
+      outline: showFocusRing ? `2px solid ${colorBorder.interactive.runwayPrimary}` : "none",
       outlineOffset: 2,
       cursor: onClick ? "pointer" : "default",
       transition: "background-color 0.15s ease, outline-color 0.1s ease",
@@ -92,8 +94,9 @@ export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
       color: `var(--ds-text-secondary, ${colorText.secondary})`,
       width: "100%",
       overflow: "hidden",
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
+      display: "-webkit-box",
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: "vertical",
       margin: 0,
     };
 
@@ -108,10 +111,10 @@ export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
         onClick={onClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setHovered(false); setPressed(false); }}
-        onMouseDown={() => setPressed(true)}
+        onMouseDown={() => { setPressed(true); setUsingMouse(true); }}
         onMouseUp={() => setPressed(false)}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onBlur={() => { setFocused(false); setUsingMouse(false); }}
         onKeyDown={(e) => {
           if (onClick && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
@@ -121,7 +124,17 @@ export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
       >
         {/* Image / thumbnail slot */}
         <div style={imageSlotStyle}>
-          {children}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100%",
+            height: "100%",
+            transition: "transform 0.3s ease",
+            transform: hovered ? "scale(1.2)" : "scale(1)",
+          }}>
+            {children}
+          </div>
         </div>
 
         {/* Text */}

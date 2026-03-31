@@ -1,6 +1,7 @@
 import React from "react";
-import { colorText, colorBg, colorBorder, primitiveColors } from "../../tokens/colors";
+import { colorText, colorBg, colorBorder, colorIcon, primitiveColors } from "../../tokens/colors";
 import { fontFamily, fontWeight } from "../../tokens/typography";
+import Icon from "../Icon/Icon";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -45,14 +46,14 @@ const STATE_TOKENS: Record<
     dotShape?: "circle" | "square";
   }
 > = {
-  success:  { bg: `var(--ds-bg-success-subtle, ${colorBg.successSubtle})`, text: `var(--ds-text-primary, ${colorText.primary})`, dot: `var(--ds-icon-success, ${colorBg.success})`, border: primitiveColors.green[300], label: "Success" },
-  info:     { bg: `var(--ds-bg-info-subtle, ${colorBg.infoSubtle})`, text: `var(--ds-text-info, ${colorText.info})`, dot: `var(--ds-text-info, ${colorText.info})`, border: primitiveColors.blue[300], label: "Info" },
-  warning:  { bg: `var(--ds-bg-warning-subtle, ${colorBg.warningSubtle})`, text: `var(--ds-text-warning, ${colorText.warning})`, dot: `var(--ds-text-warning, ${colorText.warning})`, border: primitiveColors.yellow[100], label: "Warning" },
-  error:    { bg: `var(--ds-bg-danger-subtle, ${colorBg.dangerSubtle})`, text: `var(--ds-text-danger, ${colorText.danger})`, dot: `var(--ds-text-danger, ${colorText.danger})`, border: primitiveColors.red[300], label: "Error" },
-  neutral:  { bg: `var(--ds-bg-disabled, ${colorBorder.secondary})`, text: `var(--ds-text-disabled, ${colorText.disabled})`, dot: `var(--ds-text-disabled, ${colorText.disabled})`, border: `var(--ds-border-secondary, ${colorBorder.secondary})`, label: "Neutral", dotShape: "square" },
-  loading:  { bg: `var(--ds-bg-info-subtle, ${colorBg.infoSubtle})`, text: `var(--ds-text-info, ${colorText.info})`, dot: `var(--ds-text-info, ${colorText.info})`, border: primitiveColors.blue[300], label: "Loading" },
-  pending:  { bg: `var(--ds-bg-secondary, ${colorBg.secondary})`, text: `var(--ds-text-tertiary, ${primitiveColors.gray[500]})`, dot: `var(--ds-text-disabled, ${primitiveColors.gray[400]})`, border: `var(--ds-border-secondary, ${primitiveColors.gray[300]})`, label: "Pending" },
-  stopped:  { bg: `var(--ds-bg-tertiary, ${colorBg.tertiary})`, text: `var(--ds-text-disabled, ${primitiveColors.gray[400]})`, dot: `var(--ds-border-secondary, ${primitiveColors.gray[300]})`, border: `var(--ds-border-secondary, ${primitiveColors.gray[200]})`, label: "Stopped" },
+  success:  { bg: `var(--ds-bg-success-subtle, ${colorBg.successSubtle})`, text: `var(--ds-text-primary, ${colorText.primary})`, dot: "#00a63e", border: "#00a63e", label: "Success" },
+  info:     { bg: `var(--ds-bg-info-subtle, ${colorBg.infoSubtle})`, text: `var(--ds-text-primary, ${colorText.primary})`, dot: "#0084d1", border: "#0084d1", label: "Info" },
+  warning:  { bg: `var(--ds-bg-warning-subtle, ${colorBg.warningSubtle})`, text: `var(--ds-text-primary, ${colorText.primary})`, dot: "#d08b00", border: "#f0a000", label: "Warning" },
+  error:    { bg: `var(--ds-bg-danger-subtle, ${colorBg.dangerSubtle})`, text: `var(--ds-text-primary, ${colorText.primary})`, dot: "#e7000b", border: "#e7000b", label: "Error" },
+  neutral:  { bg: `var(--ds-bg-neutral, #d1d5dc)`, text: `var(--ds-text-secondary, ${colorText.secondary})`, dot: `${colorIcon.secondary}`, border: `${colorBorder.primary}`, label: "Neutral" },
+  loading:  { bg: `var(--ds-bg-neutral, #d1d5dc)`, text: `var(--ds-text-secondary, ${colorText.secondary})`, dot: `${colorIcon.secondary}`, border: `${colorBorder.primary}`, label: "Loading" },
+  pending:  { bg: `var(--ds-bg-neutral, #d1d5dc)`, text: `var(--ds-text-secondary, ${colorText.secondary})`, dot: `${colorIcon.secondary}`, border: `${colorBorder.primary}`, label: "Pending" },
+  stopped:  { bg: `var(--ds-bg-disabled, #e5e7eb)`, text: `var(--ds-text-disabled, ${colorText.disabled})`, dot: `${colorIcon.disabled}`, border: `${colorBorder.disabled}`, label: "Stopped", dotShape: "square" },
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -75,52 +76,66 @@ function LeadingIndicator({
   state,
   dot,
   dotSize,
+  iconContainerSize,
   dotShape = "circle",
 }: {
   state: StatusChipState;
   dot: string;
   dotSize: number;
+  iconContainerSize: number;
   dotShape?: "circle" | "square";
 }) {
   if (state === "loading") {
     ensureSpinKeyframes();
-    const r = dotSize / 2 - 1;
+    const spinnerSize = iconContainerSize === 24 ? 16 : 12;
+    const r = spinnerSize / 2 - 1;
     const circ = 2 * Math.PI * r;
     return (
-      <svg
-        width={dotSize}
-        height={dotSize}
-        viewBox={`0 0 ${dotSize} ${dotSize}`}
-        style={{ animation: "mds-status-spin 0.8s linear infinite", flexShrink: 0 }}
-        aria-hidden="true"
-      >
-        <circle
-          cx={dotSize / 2}
-          cy={dotSize / 2}
-          r={r}
-          fill="none"
-          stroke={dot}
-          strokeWidth="1.5"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * 0.25}
-          strokeLinecap="round"
-        />
-      </svg>
+      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: iconContainerSize, height: iconContainerSize, flexShrink: 0 }}>
+        <svg
+          width={spinnerSize}
+          height={spinnerSize}
+          viewBox={`0 0 ${spinnerSize} ${spinnerSize}`}
+          style={{ animation: "mds-status-spin 0.8s linear infinite" }}
+          aria-hidden="true"
+        >
+          <circle
+            cx={spinnerSize / 2}
+            cy={spinnerSize / 2}
+            r={r}
+            fill="none"
+            stroke={dot}
+            strokeWidth="1.5"
+            strokeDasharray={circ}
+            strokeDashoffset={circ * 0.25}
+            strokeLinecap="round"
+          />
+        </svg>
+      </span>
+    );
+  }
+
+  if (state === "pending") {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: iconContainerSize, height: iconContainerSize, flexShrink: 0 }}>
+        <Icon name="pending" size={iconContainerSize} color={dot} />
+      </span>
     );
   }
 
   return (
-    <span
-      style={{
-        width: dotSize,
-        height: dotSize,
-        borderRadius: dotShape === "square" ? "1.5px" : "50%",
-        backgroundColor: dot,
-        flexShrink: 0,
-        display: "inline-block",
-      }}
-      aria-hidden="true"
-    />
+    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: iconContainerSize, height: iconContainerSize, flexShrink: 0 }}>
+      <span
+        style={{
+          width: dotSize,
+          height: dotSize,
+          borderRadius: dotShape === "square" ? "1.5px" : "50%",
+          backgroundColor: dot,
+          display: "inline-block",
+        }}
+        aria-hidden="true"
+      />
+    </span>
   );
 }
 
@@ -141,7 +156,9 @@ export const StatusChip: React.FC<StatusChipProps> = ({
   const height = size === "md" ? 32 : 24;
   const fontSize = size === "md" ? 14 : 12;
   const dotSize = size === "md" ? 8 : 6;
-  const paddingX = size === "md" ? 12 : 8;
+  const iconContainerSize = size === "md" ? 24 : 16;
+  const paddingLeft = 8;
+  const paddingRight = 12;
 
   let bg = tokens.bg;
   let border = "transparent";
@@ -158,7 +175,10 @@ export const StatusChip: React.FC<StatusChipProps> = ({
     alignItems: "center",
     gap: 4,
     height,
-    padding: `4px ${paddingX}px`,
+    paddingLeft,
+    paddingRight,
+    paddingTop: 4,
+    paddingBottom: 4,
     borderRadius: 9999,
     backgroundColor: bg,
     border: `1px solid ${chipStyle === "filled" ? "transparent" : border}`,
@@ -174,7 +194,7 @@ export const StatusChip: React.FC<StatusChipProps> = ({
 
   return (
     <span className={className} style={chipStyle_}>
-      <LeadingIndicator state={state} dot={tokens.dot} dotSize={dotSize} dotShape={tokens.dotShape ?? "circle"} />
+      <LeadingIndicator state={state} dot={tokens.dot} dotSize={dotSize} iconContainerSize={iconContainerSize} dotShape={tokens.dotShape ?? "circle"} />
       {displayLabel}
     </span>
   );

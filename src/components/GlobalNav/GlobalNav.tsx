@@ -111,6 +111,19 @@ function BreadcrumbLink({
   isCurrent: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [usingMouse, setUsingMouse] = useState(false);
+  const showFocusRing = focused && !usingMouse;
+
+  const isClickable = !isCurrent && !!item.onClick;
+
+  const getBackground = () => {
+    if (!isClickable) return "transparent";
+    if (pressed) return "var(--ds-bg-interactive-secondary-pressed, rgba(0,0,0,0.08))";
+    if (hovered) return "var(--ds-bg-interactive-secondary-hovered, rgba(0,0,0,0.04))";
+    return "transparent";
+  };
 
   const containerStyle: React.CSSProperties = {
     display: "inline-flex",
@@ -118,13 +131,12 @@ function BreadcrumbLink({
     gap: tokens.spacing[4],
     padding: `${tokens.spacing[4]}px ${tokens.spacing[8]}px`,
     opacity: isCurrent ? 1 : 0.7,
-    cursor: !isCurrent && item.onClick ? "pointer" : "default",
+    cursor: isClickable ? "pointer" : "default",
     borderRadius: 4,
-    background:
-      !isCurrent && hovered && item.onClick
-        ? "rgba(0,0,0,0.04)"
-        : "transparent",
-    transition: "background 0.1s",
+    background: getBackground(),
+    outline: showFocusRing && isClickable ? "2px solid var(--ds-border-interactive-primary, #2563eb)" : "none",
+    outlineOffset: 1,
+    transition: "background 0.15s ease, outline 0.1s ease",
     flexShrink: 0,
   };
 
@@ -141,10 +153,22 @@ function BreadcrumbLink({
 
   return (
     <span
+      role={isClickable ? "link" : undefined}
+      tabIndex={isClickable ? 0 : undefined}
       style={containerStyle}
-      onClick={!isCurrent ? item.onClick : undefined}
+      onClick={isClickable ? item.onClick : undefined}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => { setHovered(false); setPressed(false); }}
+      onMouseDown={() => { setPressed(true); setUsingMouse(true); }}
+      onMouseUp={() => setPressed(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => { setFocused(false); setUsingMouse(false); }}
+      onKeyDown={(e) => {
+        if (isClickable && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          item.onClick?.();
+        }
+      }}
       aria-current={isCurrent ? "page" : undefined}
     >
       {item.icon && (
@@ -262,7 +286,7 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({
   user,
   rightContent,
   leftContent,
-  height = 48,
+  height = 60,
   className,
   style,
 }) => {

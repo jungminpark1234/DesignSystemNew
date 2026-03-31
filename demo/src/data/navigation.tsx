@@ -3,7 +3,7 @@ import { Icon } from "@ds/components/Icon";
 import type { SidebarNavItem } from "@ds/components/Sidebar";
 
 export const WORKSPACE_NAV: SidebarNavItem[] = [
-  { key: "projects", label: "Projects", icon: <Icon name="folder" size={20} /> },
+  { key: "projects", label: "Projects", icon: <Icon name="folder_open" size={20} /> },
   { key: "platform", label: "Platform Apps", icon: <Icon name="Platform" size={20} /> },
   { key: "members", label: "Members", icon: <Icon name="user" size={20} /> },
   { key: "monitoring", label: "Monitoring", icon: <Icon name="monitoring" size={20} /> },
@@ -14,6 +14,7 @@ export const WORKSPACE_NAV: SidebarNavItem[] = [
     children: [
       { key: "general", label: "General" },
       { key: "role", label: "Role" },
+      { key: "ws-data-connection", label: "Data connection" },
     ],
   },
 ];

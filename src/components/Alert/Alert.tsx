@@ -115,7 +115,7 @@ export const Alert: React.FC<AlertProps> = ({
   const containerStyle: React.CSSProperties = {
     display: "flex",
     gap: 8,
-    alignItems: "flex-start",
+    alignItems: variant === "desc" ? "center" : "flex-start",
     minWidth: 320,
     padding: 16,
     borderRadius: borderRadius["2xl"],

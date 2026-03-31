@@ -5,8 +5,12 @@ import { PlatformAppsPage } from "./pages/PlatformAppsPage";
 import { DataConnectionsPage } from "./pages/DataConnectionsPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { FormControlsPage } from "./pages/FormControlsPage";
+import { WorkspaceGeneralPage } from "./pages/WorkspaceGeneralPage";
+import { ApplicationPage } from "./pages/ApplicationPage";
 
 const TABS = [
+  { key: "ws-general", label: "Workspace General" },
+  { key: "application", label: "Application" },
   { key: "lnb", label: "LNB Workspace" },
   { key: "platform", label: "Platform Apps" },
   { key: "catalog", label: "Catalog" },
@@ -21,10 +25,10 @@ const NAV_TO_TAB: Record<string, TabKey> = {
   "projects": "lnb",
   "platform": "platform",
   "catalog": "catalog",
-  "application": "platform",
+  "application": "application",
   "data-connection": "data",
   "settings": "lnb",
-  "general": "lnb",
+  "general": "ws-general",
   "role": "lnb",
 };
 
@@ -106,6 +110,8 @@ export default function App() {
 
       {/* Page content */}
       <div style={{ flex: 1, overflow: "hidden" }}>
+        {activeTab === "ws-general" && <WorkspaceGeneralPage onNavigate={handleLnbNavigate} />}
+        {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} />}
         {activeTab === "lnb" && <LnbWorkspacePage />}
         {activeTab === "platform" && <PlatformAppsPage onNavigate={handleLnbNavigate} />}
         {activeTab === "catalog" && <CatalogPage onNavigate={handleLnbNavigate} />}
