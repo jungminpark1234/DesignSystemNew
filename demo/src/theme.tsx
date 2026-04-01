@@ -84,6 +84,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     setCssVars(colors);
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
     document.body.style.backgroundColor = colors.bg.primary;
     document.body.style.color = colors.text.primary;
   }, [isDark]);

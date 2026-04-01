@@ -9,6 +9,8 @@ import Icon from "../Icon/Icon";
 // ──────────────────────────────────────────────────────────────────────────────
 export type TextFieldState = "default" | "error" | "disabled";
 
+export type HelpMessageStatus = "default" | "error" | "success" | "info" | "warning";
+
 export interface TextFieldProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
   /** Field label displayed above the input */
@@ -17,12 +19,16 @@ export interface TextFieldProps
   placeholder?: string;
   /** Help / hint text below the input */
   helpMessage?: string;
+  /** Help message status — determines icon and color */
+  helpMessageStatus?: HelpMessageStatus;
   /** Validation state */
   state?: TextFieldState;
   /** Icon rendered on the left side (16 × 16) */
   leadingIcon?: React.ReactNode;
   /** Icon rendered on the right side (16 × 16) */
   trailingIcon?: React.ReactNode;
+  /** Icon rendered next to the label (16 × 16) */
+  helpIcon?: React.ReactNode;
   /** Controlled value */
   value?: string;
   /** Change handler */
@@ -36,13 +42,40 @@ export interface TextFieldProps
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────────
-function getBorderColor(state: TextFieldState, focused: boolean, hovered: boolean): string {
+function getBorderColor(
+  state: TextFieldState,
+  focused: boolean,
+  hovered: boolean,
+  pressed: boolean,
+): string {
   if (state === "disabled") return colorBorder.disabled;
   if (state === "error") return colorBorder.danger;
   if (focused) return colorBorder.interactive.runwayPrimary;
-  if (hovered) return colorBorder.primary;
-  return colorBorder.secondary;
+  if (pressed) return colorBorder.interactive.runwayPrimaryPressed;
+  if (hovered) return colorBorder.interactive.runwayPrimaryHovered;
+  return colorBorder.interactive.secondary;
 }
+
+function getBgColor(state: TextFieldState, hovered: boolean): string {
+  if (state === "disabled") return colorBg.disabled;
+  if (hovered) return colorBg.interactive.secondaryHovered;
+  return colorBg.primary;
+}
+
+const HELP_STATUS_COLORS: Record<HelpMessageStatus, string> = {
+  default: colorText.tertiary,
+  error: colorText.danger,
+  success: colorText.success,
+  info: colorText.info,
+  warning: colorText.warning,
+};
+
+const HELP_STATUS_ICONS: Record<string, string> = {
+  error: "error-circle-stroke",
+  success: "check-circle-stroke",
+  info: "info-circle-stroke",
+  warning: "warning-circle-stroke",
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Component
@@ -53,9 +86,11 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
       label,
       placeholder = "Placeholder",
       helpMessage,
+      helpMessageStatus,
       state = "default",
       leadingIcon,
       trailingIcon,
+      helpIcon,
       value,
       onChange,
       maxLength,
@@ -73,6 +108,7 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
 
     const [focused, setFocused] = useState(false);
     const [hovered, setHovered] = useState(false);
+    const [pressed, setPressed] = useState(false);
 
     // Track length for uncontrolled mode
     const [internalLength, setInternalLength] = useState(
@@ -85,7 +121,12 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
       onChange?.(e);
     };
 
-    const borderColor = getBorderColor(state, focused, hovered);
+    // Resolve help message status: explicit prop > inferred from state
+    const resolvedHelpStatus: HelpMessageStatus =
+      helpMessageStatus ?? (isError ? "error" : "default");
+
+    const borderColor = getBorderColor(state, focused, hovered, pressed);
+    const bgColor = getBgColor(state, hovered && !focused);
 
     // Wrapper
     const wrapperStyle: React.CSSProperties = {
@@ -121,10 +162,8 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
       boxSizing: "border-box",
       borderRadius: borderRadius.lg,
       border: `1px solid ${borderColor}`,
-      backgroundColor: isDisabled
-        ? colorBg.disabled
-        : colorBg.primary,
-      transition: "border-color 0.15s ease",
+      backgroundColor: bgColor,
+      transition: "border-color 0.15s ease, background-color 0.15s ease",
       cursor: isDisabled ? "not-allowed" : "text",
       overflow: "hidden",
     };
@@ -146,25 +185,35 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
     };
 
     // Help message
+    const helpColor = HELP_STATUS_COLORS[resolvedHelpStatus];
+    const helpIconName = HELP_STATUS_ICONS[resolvedHelpStatus];
+
     const helpStyle: React.CSSProperties = {
       display: "flex",
       alignItems: "center",
-      gap: spacing[4],
+      gap: helpIconName ? spacing[4] : 0,
       fontFamily: fontFamily.body,
       fontSize: 12,
       fontWeight: fontWeight.medium,
       lineHeight: "16px",
-      color: isError ? colorText.danger : colorText.tertiary,
+      color: helpColor,
     };
 
     return (
       <div className={className} style={wrapperStyle}>
-        {/* Label + optional character counter */}
+        {/* Label + optional help icon + counter */}
         {label && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-            <label htmlFor={id} style={labelStyle}>
-              {label}
-            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+              <label htmlFor={id} style={labelStyle}>
+                {label}
+              </label>
+              {helpIcon && (
+                <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0, width: 16, height: 16 }}>
+                  {helpIcon}
+                </span>
+              )}
+            </div>
             {maxLength !== undefined && (
               <span style={{
                 fontFamily: fontFamily.body,
@@ -184,7 +233,9 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
         <div
           style={inputWrapperStyle}
           onMouseEnter={() => !isDisabled && setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          onMouseLeave={() => { setHovered(false); setPressed(false); }}
+          onMouseDown={() => !isDisabled && setPressed(true)}
+          onMouseUp={() => setPressed(false)}
         >
           {leadingIcon && (
             <span
@@ -246,8 +297,8 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
         {/* Help message */}
         {helpMessage && (
           <span id={`${id}-help`} style={helpStyle}>
-            {isError && (
-              <Icon name="error-circle-stroke" size={16} color={colorText.danger} />
+            {helpIconName && (
+              <Icon name={helpIconName} size={16} color={helpColor} />
             )}
             {helpMessage}
           </span>

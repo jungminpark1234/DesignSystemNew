@@ -5,6 +5,7 @@ import { Icon } from "@ds/components/Icon";
 import { useTheme } from "../theme";
 import { PROJECT_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
+import { ListPage, PageTitle, PageDescription } from "../components/PageLayout";
 import { CatalogDetailPage } from "./CatalogDetailPage";
 import { CATALOG_README } from "../data/catalogReadme";
 
@@ -239,39 +240,10 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
           ]}
         />
 
-        <main style={{ flex: 1, overflow: "auto", padding: 24 }}>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              marginBottom: 32,
-            }}
-          >
-            <h1
-              style={{
-                fontSize: 24,
-                fontWeight: 600,
-                lineHeight: "32px",
-                color: colors.text.primary,
-                fontFamily: "'Pretendard', sans-serif",
-              }}
-            >
-              Catalog
-            </h1>
-            <p
-              style={{
-                fontSize: 14,
-                fontWeight: 400,
-                lineHeight: "16px",
-                color: colors.text.secondary,
-                fontFamily: "'Pretendard', sans-serif",
-              }}
-            >
-              Explore available apps and models
-            </p>
-          </div>
-
+        <ListPage
+          title={<PageTitle>Catalog</PageTitle>}
+          description={<PageDescription>Explore available apps and models</PageDescription>}
+        >
           <div
             style={{
               display: "grid",
@@ -299,7 +271,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
               </GridCard>
             ))}
           </div>
-        </main>
+        </ListPage>
       </div>
     </div>
   );

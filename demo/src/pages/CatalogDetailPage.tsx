@@ -1,12 +1,18 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Sidebar } from "@ds/components/Sidebar";
 import { Icon } from "@ds/components/Icon";
 import { useTheme } from "../theme";
 import { PROJECT_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
+import { DetailPage, DetailContentWithSidebar, PageTitle } from "../components/PageLayout";
 import { CatalogItemData } from "../data/catalogReadme";
 import { CreateAppDrawer } from "../components/CreateAppDrawer";
+import Prism from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-yaml";
+import "prismjs/components/prism-javascript";
 
 // Catalog logos
 import logoChroma from "@ds/icons/catalog/chroma.svg";
@@ -130,14 +136,6 @@ export function CatalogDetailPage({ item, onBack, onNavigate }: CatalogDetailPag
     onNavigate?.(key);
   };
 
-  const [scrolled, setScrolled] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const handleScroll = useCallback(() => {
-    if (scrollRef.current) {
-      setScrolled(scrollRef.current.scrollTop > 20);
-    }
-  }, []);
-
   const borderColor = `var(--ds-border-secondary, ${colors.border.secondary})`;
   const ff = "'Pretendard', sans-serif";
 
@@ -168,123 +166,19 @@ export function CatalogDetailPage({ item, onBack, onNavigate }: CatalogDetailPag
           ]}
         />
 
-        {/* Title section (fixed) */}
-        <div style={{
-          padding: "24px 24px 16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          flexShrink: 0,
-          borderBottom: scrolled ? `1px solid ${borderColor}` : "1px solid transparent",
-          transition: "border-color 0.2s ease",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                onClick={onBack}
-                style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: "2px 5px" }}
-              >
-                <Icon name="prev-arrow" size={20} color={colors.icon.secondary} />
-              </button>
-              <h1 style={{ fontSize: 24, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
-                {item.title}
-              </h1>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <DetailPage
+          title={<PageTitle>{item.title}</PageTitle>}
+          onBack={onBack}
+          actions={
+            <>
               <CreateButton onClick={() => setDrawerOpen(true)} />
               <MoreButton />
-            </div>
-          </div>
-        </div>
-
-        {/* Page content */}
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          style={{ flex: 1, overflow: "auto" }}
+            </>
+          }
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 32, padding: 24 }}>
-
-            {/* Body: Readme + 기본정보 */}
-            <div style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
-
-              {/* Left: Readme */}
-              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
-                  Readme
-                </h2>
-                <div style={{
-                  border: `1px solid ${borderColor}`,
-                  borderRadius: 12,
-                  padding: 24,
-                  backgroundColor: `var(--ds-bg-primary, ${colors.bg.primary})`,
-                }}>
-                  <div style={{
-                    color: colors.text.primary,
-                    fontFamily: ff,
-                    fontSize: 14,
-                    lineHeight: "24px",
-                  }}>
-                    <ReactMarkdown
-                      components={{
-                        h1: ({ children }) => (
-                          <h1 style={{ fontSize: 22, fontWeight: 700, marginTop: 0, marginBottom: 12, color: colors.text.primary, fontFamily: ff }}>{children}</h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 style={{ fontSize: 17, fontWeight: 600, marginTop: 28, marginBottom: 10, color: colors.text.primary, fontFamily: ff, borderBottom: `1px solid ${borderColor}`, paddingBottom: 6 }}>{children}</h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 style={{ fontSize: 15, fontWeight: 600, marginTop: 20, marginBottom: 8, color: colors.text.primary, fontFamily: ff }}>{children}</h3>
-                        ),
-                        p: ({ children }) => (
-                          <p style={{ margin: "0 0 12px", color: colors.text.primary, fontFamily: ff, lineHeight: "24px" }}>{children}</p>
-                        ),
-                        code: ({ inline, children }: any) => inline ? (
-                          <code style={{ backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)", borderRadius: 4, padding: "1px 5px", fontSize: 13, fontFamily: "monospace", color: colors.text.primary }}>{children}</code>
-                        ) : (
-                          <pre style={{ backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: "12px 16px", overflow: "auto", margin: "0 0 16px" }}>
-                            <code style={{ fontFamily: "monospace", fontSize: 13, color: colors.text.primary }}>{children}</code>
-                          </pre>
-                        ),
-                        ul: ({ children }) => (
-                          <ul style={{ paddingLeft: 20, margin: "0 0 12px", color: colors.text.primary, fontFamily: ff }}>{children}</ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol style={{ paddingLeft: 20, margin: "0 0 12px", color: colors.text.primary, fontFamily: ff }}>{children}</ol>
-                        ),
-                        li: ({ children }) => (
-                          <li style={{ marginBottom: 4, lineHeight: "24px" }}>{children}</li>
-                        ),
-                        strong: ({ children }) => (
-                          <strong style={{ fontWeight: 600, color: colors.text.primary }}>{children}</strong>
-                        ),
-                        a: ({ href, children }) => (
-                          <a href={href} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", textDecoration: "none" }}>{children}</a>
-                        ),
-                        table: ({ children }) => (
-                          <div style={{ overflowX: "auto", marginBottom: 16 }}>
-                            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, fontFamily: ff }}>{children}</table>
-                          </div>
-                        ),
-                        th: ({ children }) => (
-                          <th style={{ border: `1px solid ${borderColor}`, padding: "6px 12px", textAlign: "left", fontWeight: 600, backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)", color: colors.text.primary }}>{children}</th>
-                        ),
-                        td: ({ children }) => (
-                          <td style={{ border: `1px solid ${borderColor}`, padding: "6px 12px", color: colors.text.primary }}>{children}</td>
-                        ),
-                        img: ({ src, alt }) => (
-                          <img src={src} alt={alt} style={{ maxWidth: "100%", height: "auto", borderRadius: 8, marginBottom: 16, display: "block" }} />
-                        ),
-                      }}
-                    >
-                      {item.readme}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right: 기본정보 */}
-              <div style={{ width: 480, flexShrink: 0, display: "flex", flexDirection: "column", gap: 24 }}>
+          <DetailContentWithSidebar
+            sidebar={
+              <>
                 <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
                   기본정보
                 </h2>
@@ -312,11 +206,92 @@ export function CatalogDetailPage({ item, onBack, onNavigate }: CatalogDetailPag
                     </div>
                   </InfoRow>
                 </div>
+              </>
+            }
+          >
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
+              Readme
+            </h2>
+            <div style={{
+              border: `1px solid ${borderColor}`,
+              borderRadius: 12,
+              padding: 24,
+              backgroundColor: `var(--ds-bg-primary, ${colors.bg.primary})`,
+            }}>
+              <div style={{
+                color: colors.text.primary,
+                fontFamily: ff,
+                fontSize: 14,
+                lineHeight: "24px",
+              }}>
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => (
+                      <h1 style={{ fontSize: 22, fontWeight: 700, marginTop: 0, marginBottom: 12, color: colors.text.primary, fontFamily: ff }}>{children}</h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 style={{ fontSize: 17, fontWeight: 600, marginTop: 28, marginBottom: 10, color: colors.text.primary, fontFamily: ff, borderBottom: `1px solid ${borderColor}`, paddingBottom: 6 }}>{children}</h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 style={{ fontSize: 15, fontWeight: 600, marginTop: 20, marginBottom: 8, color: colors.text.primary, fontFamily: ff }}>{children}</h3>
+                    ),
+                    p: ({ children }) => (
+                      <p style={{ margin: "0 0 12px", color: colors.text.primary, fontFamily: ff, lineHeight: "24px" }}>{children}</p>
+                    ),
+                    code: ({ inline, className, children }: any) => {
+                      if (inline) {
+                        return <code style={{ backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)", borderRadius: 4, padding: "1px 5px", fontSize: 13, fontFamily: "'Roboto Mono', monospace", color: colors.text.primary }}>{children}</code>;
+                      }
+                      const text = String(children).replace(/\n$/, "");
+                      const lang = className?.replace("language-", "") || "";
+                      const grammar = Prism.languages[lang] || Prism.languages.python;
+                      const highlighted = Prism.highlight(text, grammar, lang || "python");
+                      return (
+                        <pre style={{ backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", borderRadius: 8, padding: "12px 16px", overflow: "auto", margin: "0 0 16px" }}>
+                          <code
+                            style={{ fontFamily: "'Roboto Mono', monospace", fontSize: 13, lineHeight: "20px", color: colors.text.primary }}
+                            dangerouslySetInnerHTML={{ __html: highlighted }}
+                          />
+                        </pre>
+                      );
+                    },
+                    ul: ({ children }) => (
+                      <ul style={{ paddingLeft: 20, margin: "0 0 12px", color: colors.text.primary, fontFamily: ff }}>{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol style={{ paddingLeft: 20, margin: "0 0 12px", color: colors.text.primary, fontFamily: ff }}>{children}</ol>
+                    ),
+                    li: ({ children }) => (
+                      <li style={{ marginBottom: 4, lineHeight: "24px" }}>{children}</li>
+                    ),
+                    strong: ({ children }) => (
+                      <strong style={{ fontWeight: 600, color: colors.text.primary }}>{children}</strong>
+                    ),
+                    a: ({ href, children }) => (
+                      <a href={href} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", textDecoration: "none" }}>{children}</a>
+                    ),
+                    table: ({ children }) => (
+                      <div style={{ overflowX: "auto", marginBottom: 16 }}>
+                        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, fontFamily: ff }}>{children}</table>
+                      </div>
+                    ),
+                    th: ({ children }) => (
+                      <th style={{ border: `1px solid ${borderColor}`, padding: "6px 12px", textAlign: "left", fontWeight: 600, backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)", color: colors.text.primary }}>{children}</th>
+                    ),
+                    td: ({ children }) => (
+                      <td style={{ border: `1px solid ${borderColor}`, padding: "6px 12px", color: colors.text.primary }}>{children}</td>
+                    ),
+                    img: ({ src, alt }) => (
+                      <img src={src} alt={alt} style={{ maxWidth: "100%", height: "auto", borderRadius: 8, marginBottom: 16, display: "block" }} />
+                    ),
+                  }}
+                >
+                  {item.readme}
+                </ReactMarkdown>
               </div>
-
-            </div>  {/* end body flex row */}
-          </div>  {/* end flex col gap-32 */}
-        </div>  {/* end overflow auto */}
+            </div>
+          </DetailContentWithSidebar>
+        </DetailPage>
       </div>  {/* end main */}
 
       {/* Create Application Drawer */}

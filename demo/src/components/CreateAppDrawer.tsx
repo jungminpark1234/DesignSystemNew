@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Icon } from "@ds/components/Icon";
+import { Button } from "@ds/components/Button";
+import { TextField } from "@ds/components/TextField";
+import { TextArea } from "@ds/components/TextArea";
 import { useTheme } from "../theme";
 import { slugify, validateName, validateConnId } from "../data/connections";
 import { CatalogItemData } from "../data/catalogReadme";
 import { DrawerShell, SecondaryButton, PrimaryButton } from "./DrawerShell";
-import { TextArea } from "@ds/components/TextArea";
 import { ResourceGuideModal } from "./ResourceGuideModal";
+import Editor from "react-simple-code-editor";
+import Prism from "prismjs";
+import "prismjs/components/prism-yaml";
 
 const ff = "'Pretendard', sans-serif";
 
@@ -163,91 +168,57 @@ resources:
     memory: 8Gi`,
 };
 
-// ── Reusable form field ─────────────────────────────────────────────────────
-interface FieldProps {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  onBlur?: () => void;
-  maxLength?: number;
-  placeholder?: string;
-  error?: string | null;
-  disabled?: boolean;
-}
 
-function Field({ label, value, onChange, onBlur, maxLength, placeholder = "Placeholder", error, disabled }: FieldProps) {
+// ── Code editor (DS TextArea look + syntax highlighting) ────────────────────
+function CodeEditor({ label, value, onChange, language, height = 300 }: {
+  label?: string; value: string; onChange: (v: string) => void; language: string; height?: number;
+}) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const grammar = Prism.languages[language];
 
-  const borderColor = error
-    ? colors.text.interactive.dangerDefault
-    : focused
-      ? colors.bg.interactive.runwayPrimary
-      : hovered && !disabled
-        ? colors.border.interactive.secondaryHovered
-        : colors.border.secondary;
+  const borderColor = focused
+    ? colors.border.interactive.runwayPrimary
+    : hovered
+      ? colors.border.primary
+      : colors.border.secondary;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 14, fontWeight: 500, lineHeight: "16px", color: colors.text.interactive.secondary, fontFamily: ff }}>{label}</span>
-        {maxLength !== undefined && (
-          <span style={{ fontSize: 12, color: value.length >= maxLength ? colors.text.interactive.dangerDefault : colors.text.tertiary, fontFamily: ff }}>
-            {value.length}/{maxLength}
-          </span>
-        )}
-      </div>
-      <input
-        type="text" value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder} maxLength={maxLength} disabled={disabled}
-        onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); onBlur?.(); }}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-        style={{
-          width: "100%", height: 32, padding: "4px 12px", boxSizing: "border-box",
-          border: `1px solid ${borderColor}`, borderRadius: 8, outline: "none",
-          fontSize: 14, fontFamily: ff, color: disabled ? colors.text.disabled : colors.text.primary,
-          background: disabled ? colors.bg.tertiary : colors.bg.primary,
-          transition: "border-color 0.15s", cursor: disabled ? "not-allowed" : "text",
-        }}
-      />
-      {error && (
-        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: colors.text.interactive.dangerDefault, fontFamily: ff }}>
-          <Icon name="error-circle-stroke" size={14} color={colors.text.interactive.dangerDefault} />
-          {error}
-        </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+      {label && (
+        <label style={{ fontSize: 14, fontWeight: 500, lineHeight: "16px", color: colors.text.interactive.secondary, fontFamily: ff }}>
+          {label}
+        </label>
       )}
-    </div>
-  );
-}
-
-function DescTextArea({ label, value, onChange, maxLength, placeholder = "Placeholder" }: { label: string; value: string; onChange: (v: string) => void; maxLength?: number; placeholder?: string }) {
-  const { colors } = useTheme();
-  const [focused, setFocused] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const borderColor = focused ? colors.bg.interactive.runwayPrimary : hovered ? colors.border.interactive.secondaryHovered : colors.border.secondary;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 14, fontWeight: 500, lineHeight: "16px", color: colors.text.interactive.secondary, fontFamily: ff }}>{label}</span>
-        {maxLength !== undefined && (
-          <span style={{ fontSize: 12, color: value.length >= maxLength ? colors.text.interactive.dangerDefault : colors.text.tertiary, fontFamily: ff }}>
-            {value.length}/{maxLength}
-          </span>
-        )}
-      </div>
-      <textarea
-        value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} rows={5}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
-          width: "100%", padding: "8px 12px", boxSizing: "border-box",
-          border: `1px solid ${borderColor}`, borderRadius: 8, outline: "none",
-          resize: "vertical", fontSize: 14, fontFamily: ff, lineHeight: "20px",
-          color: colors.text.primary, background: colors.bg.primary, transition: "border-color 0.15s",
+          border: `1px solid ${borderColor}`,
+          borderRadius: 8,
+          backgroundColor: colors.bg.primary,
+          overflow: "auto",
+          height,
+          transition: "border-color 0.15s ease",
         }}
-      />
+      >
+        <Editor
+          value={value}
+          onValueChange={onChange}
+          highlight={(code) => grammar ? Prism.highlight(code, grammar, language) : code}
+          padding={12}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            fontFamily: "'Roboto Mono', monospace",
+            fontSize: 13,
+            lineHeight: "20px",
+            minHeight: "100%",
+            color: colors.text.primary,
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -260,28 +231,26 @@ function LinkRowInput({ link, onChange, onRemove }: { link: LinkRow; onChange: (
   const [hov, setHov] = useState(false);
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-end" }}>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", height: 24 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: colors.text.secondary, fontFamily: ff }}>Name</span>
-        </div>
-        <input
-          value={link.name} onChange={(e) => onChange({ ...link, name: e.target.value })} placeholder="Link name"
-          style={{ width: "100%", height: 32, padding: "4px 12px", boxSizing: "border-box", border: `1px solid ${colors.border.secondary}`, borderRadius: 8, outline: "none", fontSize: 14, fontFamily: ff, color: colors.text.primary, background: colors.bg.primary }}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <TextField
+          label="Name"
+          value={link.name}
+          onChange={(e) => onChange({ ...link, name: e.target.value })}
+          placeholder="Link name"
         />
       </div>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", height: 24 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: colors.text.secondary, fontFamily: ff }}>URL</span>
-        </div>
-        <input
-          value={link.url} onChange={(e) => onChange({ ...link, url: e.target.value })} placeholder="https://"
-          style={{ width: "100%", height: 32, padding: "4px 12px", boxSizing: "border-box", border: `1px solid ${colors.border.secondary}`, borderRadius: 8, outline: "none", fontSize: 14, fontFamily: ff, color: colors.text.primary, background: colors.bg.primary }}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <TextField
+          label="URL"
+          value={link.url}
+          onChange={(e) => onChange({ ...link, url: e.target.value })}
+          placeholder="https://"
         />
       </div>
       <button
         onClick={onRemove}
         onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-        style={{ width: 32, height: 32, borderRadius: 4, border: "none", background: hov ? colors.bg.tertiary : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+        style={{ width: 32, height: 32, borderRadius: 4, border: "none", background: hov ? colors.bg.tertiary : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 0 }}
       >
         <Icon name="minus" size={20} color={colors.icon.secondary} />
       </button>
@@ -373,9 +342,9 @@ export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerP
       <div style={{ marginBottom: 32 }}>
         <SectionTitle>Basic Information</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Field label="Name" value={name} onChange={handleNameChange} onBlur={() => setNameTouched(true)} maxLength={128} placeholder="Placeholder" error={nameErr} />
-          <Field label="ID" value={appId} onChange={handleIdChange} onBlur={() => setIdTouched(true)} maxLength={128} placeholder="my-image-classifier" error={idErr} />
-          <DescTextArea label="Description (Optional)" value={desc} onChange={setDesc} maxLength={512} placeholder="Placeholder" />
+          <TextField label="Name" value={name} onChange={(e) => handleNameChange(e.target.value)} onBlur={() => setNameTouched(true)} maxLength={128} placeholder="Placeholder" state={nameErr ? "error" : "default"} helpMessage={nameErr || undefined} />
+          <TextField label="ID" value={appId} onChange={(e) => handleIdChange(e.target.value)} onBlur={() => setIdTouched(true)} maxLength={128} placeholder="my-image-classifier" state={idErr ? "error" : "default"} helpMessage={idErr || undefined} />
+          <TextArea label="Description (Optional)" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={512} placeholder="Placeholder" />
         </div>
       </div>
 
@@ -383,13 +352,13 @@ export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerP
       <div style={{ marginBottom: 32 }}>
         <SectionTitle>Configuration</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Field label="Helm repository URL" value={helmUrl} onChange={() => {}} disabled placeholder="" />
+          <TextField label="Helm repository URL" value={helmUrl} state="disabled" placeholder="" />
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: -8 }}>
             <Icon name="check-circle-stroke" size={16} color={colors.icon.success} />
             <span style={{ fontSize: 12, fontWeight: 500, color: colors.text.success, fontFamily: ff }}>TLS verify</span>
           </div>
-          <Field label="Chart" value={chart} onChange={() => {}} disabled placeholder="" />
-          <Field label="Chart version" value={chartVersion} onChange={() => {}} disabled placeholder="" />
+          <TextField label="Chart" value={chart} state="disabled" placeholder="" />
+          <TextField label="Chart version" value={chartVersion} state="disabled" placeholder="" />
         </div>
       </div>
 
@@ -400,34 +369,27 @@ export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerP
           {links.map((link, i) => (
             <LinkRowInput key={i} link={link} onChange={(l) => updateLink(i, l)} onRemove={() => removeLink(i)} />
           ))}
-          <button
+          <SecondaryButton
+            label="Add Link"
             onClick={addLink}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-              width: "100%", height: 40, border: `1px solid ${colors.border.secondary}`, borderRadius: 4,
-              background: colors.bg.primary, cursor: "pointer", padding: "8px 16px",
-              fontSize: 14, fontWeight: 600, color: colors.text.secondary, fontFamily: ff,
-            }}
-          >
-            <Icon name="create" size={24} color={colors.icon.secondary} />
-            Add Link
-          </button>
+            icon={<Icon name="create" size={20} color="currentColor" />}
+            style={{ width: "100%", justifyContent: "center" }}
+          />
         </div>
       </div>
 
       {/* Configuration - Helm chart */}
       <div style={{ marginBottom: 32, display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 32 }}>
-          <span style={{ fontSize: 16, fontWeight: 600, lineHeight: "24px", color: colors.text.primary, fontFamily: ff }}>Herm chart</span>
+          <span style={{ fontSize: 16, fontWeight: 600, lineHeight: "24px", color: colors.text.primary, fontFamily: ff }}>Helm chart</span>
           <SecondaryButton label="Resource Guide" onClick={() => setResourceGuideOpen(true)} style={{ height: 32, padding: "6px 12px", fontSize: 12 }} />
         </div>
-        <TextArea
+        <CodeEditor
           label="values.yaml"
           value={valuesYaml}
-          onChange={(e) => setValuesYaml(e.target.value)}
+          onChange={setValuesYaml}
+          language="yaml"
           height={480}
-          placeholder=""
-          style={{ whiteSpace: "pre" }}
         />
       </div>
     </DrawerShell>

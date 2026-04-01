@@ -18,6 +18,9 @@ export type { TextFieldProps, TextFieldState } from "./components/TextField";
 export { TextArea } from "./components/TextArea";
 export type { TextAreaProps, TextAreaState } from "./components/TextArea";
 
+export { Drawer } from "./components/Drawer";
+export type { DrawerProps } from "./components/Drawer";
+
 export { Select } from "./components/Select";
 export type { SelectProps, SelectState, SelectOption } from "./components/Select";
 

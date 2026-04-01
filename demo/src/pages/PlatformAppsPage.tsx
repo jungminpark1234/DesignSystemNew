@@ -5,6 +5,7 @@ import { Icon } from "@ds/components/Icon";
 import { useTheme } from "../theme";
 import { WORKSPACE_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
+import { ListPage, PageTitle, PageDescription } from "../components/PageLayout";
 
 // ─── Platform app logos (SVG imports via Vite) ───
 import logoGitea from "@ds/icons/platform/gitea.svg";
@@ -176,33 +177,10 @@ export function PlatformAppsPage({ onNavigate }: PlatformAppsPageProps) {
           ]}
         />
 
-        <main style={{ flex: 1, overflow: "auto", padding: "32px 40px" }}>
-          <div style={{ marginBottom: 32 }}>
-            <h1
-              style={{
-                fontFamily: "'Pretendard', sans-serif",
-                fontSize: 24,
-                fontWeight: 700,
-                lineHeight: "32px",
-                color: colors.text.primary,
-                marginBottom: 8,
-              }}
-            >
-              Platform apps
-            </h1>
-            <p
-              style={{
-                fontFamily: "'Pretendard', sans-serif",
-                fontSize: 14,
-                fontWeight: 400,
-                lineHeight: "20px",
-                color: colors.text.secondary,
-              }}
-            >
-              A platform service managed through Runway.
-            </p>
-          </div>
-
+        <ListPage
+          title={<PageTitle>Platform apps</PageTitle>}
+          description={<PageDescription>A platform service managed through Runway.</PageDescription>}
+        >
           <div
             style={{
               display: "grid",
@@ -239,7 +217,7 @@ export function PlatformAppsPage({ onNavigate }: PlatformAppsPageProps) {
               );
             })}
           </div>
-        </main>
+        </ListPage>
       </div>
     </div>
   );
