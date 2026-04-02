@@ -75,42 +75,43 @@ export const colorIconDark = {
 // Semantic — Background  (dark)
 // ------------------------------------------------------------------
 export const colorBgDark = {
-  primary:         p.gray[900],     // main app background
-  secondary:       p.gray[800],     // sidebar, navigation panels
-  tertiary:        p.gray[750],     // cards, section panels
-  neutral:         p.gray[700],     // neutral fills (e.g. switch off)
-  runway:          p.blue[600],     // brand blue — white text = 5.2:1 ✓
+  // Blue-gray tinted blacks (~5-10% blue)
+  primary:         "#000005",        // main app background — near-black with blue tint
+  secondary:       "#080a10",        // sidebar, navigation panels
+  tertiary:        "#0f1219",        // cards, section panels
+  neutral:         "#161a22",        // neutral fills (e.g. switch off)
+  runway:          p.blue[600],
   drawx:           "#4f39f6",
-  disabled:        p.gray[800],
-  inverseBold:     p.gray[200],     // inverse surface (light bg in dark theme)
+  disabled:        "#080a10",
+  inverseBold:     p.gray[200],
   inverseBolder:   p.gray[100],
-  infoSubtle:      p.blue[925],     // sky-tinted ~15% L  ✓
+  infoSubtle:      "#001a33",
   info:            "#0369a1",
-  warningSubtle:   p.yellow[900],   // hsl(43°, 100%, 14.5%) ~15% L  ✓
+  warningSubtle:   "#1a1200",
   warning:         "#d08b00",
-  successSubtle:   p.green[925],    // hsl(140°, 65%, 15%) ~15% L  ✓
+  successSubtle:   "#001a0d",
   success:         p.green[800],
-  dangerSubtle:    p.red[950],      // hsl(358°, ~60%, 15.3%) ~15% L  ✓
+  dangerSubtle:    "#1a0000",
   danger:          p.red[700],
   interactive: {
-    runwayPrimary:          p.blue[600],    // brand btn bg — white on it = 5.2:1 ✓
+    runwayPrimary:          p.blue[600],
     runwayPrimaryHovered:   p.blue[700],
     runwayPrimaryPressed:   p.blue[800],
     drawxPrimary:           "#4f39f6",
     drawxPrimaryHovered:    "#432dd7",
     drawxPrimaryPressed:    "#372aac",
-    secondary:              p.gray[800],
-    secondaryHovered:       p.gray[750],
-    secondaryPressed:       p.gray[700],
-    neutral:                p.gray[700],
-    neutralHovered:         p.gray[600],
-    neutralPressed:         p.gray[500],
+    secondary:              "#080a10",
+    secondaryHovered:       "#0f1219",
+    secondaryPressed:       "#161a22",
+    neutral:                "#161a22",
+    neutralHovered:         "#1e222c",
+    neutralPressed:         "#282d38",
     danger:                 p.red[600],
     dangerHovered:          p.red[700],
     dangerPressed:          p.red[800],
-    runwaySelected:         p.blue[950],    // dark selected bg
-    runwaySelectedHovered:  p.blue[900],
-    runwaySelectedPressed:  p.blue[800],
+    runwaySelected:         "#0a1028",
+    runwaySelectedHovered:  "#0f1a3d",
+    runwaySelectedPressed:  "#142252",
     drawxSelected:          "#1e1b4b",
   },
 } as const;
@@ -119,20 +120,21 @@ export const colorBgDark = {
 // Semantic — Border  (dark)
 // ------------------------------------------------------------------
 export const colorBorderDark = {
-  primary:       p.gray[600],    // 3:1+ visible border ✓
-  secondary:     p.gray[750],    // subtle dividers
-  tertiary:      p.gray[800],    // near-invisible hairlines
-  disabled:      p.gray[750],
-  inverseBorder: p.gray[300],    // border on inverse surfaces
-  runwayFocusRing: p.blue[400],  // 6.1:1 on bg.primary ✓ AA (focus visible)
+  // Blue-gray tinted borders (~5-10% blue)
+  primary:       "#2a2f3a",      // visible border
+  secondary:     "#161a22",      // subtle dividers
+  tertiary:      "#0f1219",      // near-invisible hairlines
+  disabled:      "#161a22",
+  inverseBorder: p.gray[300],
+  runwayFocusRing: p.blue[400],
   drawxFocusRing:  "#7c6af5",
-  infoSubtle:    p.blue[925],
+  infoSubtle:    "#001a33",
   info:          "#0369a1",
-  warningSubtle: p.yellow[900],
+  warningSubtle: "#1a1200",
   warning:       "#d08b00",
-  successSubtle: p.green[925],
+  successSubtle: "#001a0d",
   success:       p.green[800],
-  dangerSubtle:  p.red[950],
+  dangerSubtle:  "#1a0000",
   danger:        p.red[700],
   interactive: {
     runwayPrimary:          p.blue[400],
@@ -141,12 +143,12 @@ export const colorBorderDark = {
     drawxPrimary:           "#7c6af5",
     drawxPrimaryHovered:    "#a89cfa",
     drawxPrimaryPressed:    "#c4bcfc",
-    secondaryButton:        p.gray[400],   // ghost/outline button border
-    secondaryButtonHovered: p.gray[300],
-    secondaryButtonPressed: p.gray[200],
-    secondary:              p.gray[750],
-    secondaryHovered:       p.gray[700],
-    secondaryPressed:       p.gray[600],
+    secondaryButton:        "#343a47",
+    secondaryButtonHovered: "#404756",
+    secondaryButtonPressed: "#4d5565",
+    secondary:              "#1e222c",
+    secondaryHovered:       "#282d38",
+    secondaryPressed:       "#343a47",
     danger:                 p.red[400],
     dangerHovered:          p.red[500],
     dangerPressed:          p.red[600],

@@ -19,6 +19,7 @@ import logoAirflow from "@ds/icons/catalog/airflow.svg";
 
 interface CatalogPageProps {
   onNavigate?: (key: string) => void;
+  projectName?: string;
 }
 
 const CATALOG_ITEMS = [
@@ -66,7 +67,7 @@ const CATALOG_ITEMS = [
   },
 ];
 
-export function CatalogPage({ onNavigate }: CatalogPageProps) {
+export function CatalogPage({ onNavigate, projectName = "NLP Models" }: CatalogPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("catalog");
   const [detailApp, setDetailApp] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
                   width: 32,
                   height: 32,
                   borderRadius: 5.3,
-                  backgroundColor: colors.bg.warning,
+                  backgroundColor: "#bf6a40",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -191,7 +192,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
                     fontFamily: "'Pretendard', sans-serif",
                   }}
                 >
-                  NLP Models
+                  {projectName}
                 </div>
               </div>
             </div>
@@ -222,7 +223,7 @@ export function CatalogPage({ onNavigate }: CatalogPageProps) {
         <AppGnb
           breadcrumbs={[
             {
-              label: "NLP Models",
+              label: projectName,
               icon: (
                 <Icon
                   name="folder_open"

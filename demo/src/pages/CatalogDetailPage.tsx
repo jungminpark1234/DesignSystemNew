@@ -45,7 +45,7 @@ function SidebarHeader() {
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 16px 12px" }}>
-        <div style={{ width: 32, height: 32, borderRadius: 5.3, backgroundColor: colors.bg.warning, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 5.3, backgroundColor: "#bf6a40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <span style={{ fontSize: 16, fontWeight: 600, color: colors.text.inverse, lineHeight: 1 }}>D</span>
         </div>
         <span style={{ flex: 1, fontSize: 14, fontWeight: 600, lineHeight: "16px", color: colors.text.primary, fontFamily: "'Pretendard', sans-serif" }}>

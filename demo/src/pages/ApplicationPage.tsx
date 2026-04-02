@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { Sidebar } from "@ds/components/Sidebar";
 import { DefaultCard } from "@ds/components/DefaultCard";
 import { StatusChip } from "@ds/components/StatusChip";
@@ -7,9 +7,11 @@ import { Icon } from "@ds/components/Icon";
 import { useTheme } from "../theme";
 import { PROJECT_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
+import { ListPage, PageTitle, PageDescription } from "../components/PageLayout";
 
 interface ApplicationPageProps {
   onNavigate?: (key: string) => void;
+  projectName?: string;
 }
 
 const ff = "'Pretendard', sans-serif";
@@ -92,7 +94,7 @@ const APP_ITEMS: {
 ];
 
 // ── Sidebar header ──────────────────────────────────────────────────────────
-function SidebarHeader() {
+function SidebarHeader({ projectName = "NLP Models" }: { projectName?: string }) {
   const { colors } = useTheme();
   return (
     <>
@@ -183,7 +185,7 @@ function SidebarHeader() {
               fontFamily: ff,
             }}
           >
-            NLP Models
+            {projectName}
           </div>
         </div>
       </div>
@@ -250,18 +252,10 @@ function CardFooter({ creator, date }: { creator: string; date: string }) {
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
-export function ApplicationPage({ onNavigate }: ApplicationPageProps) {
+export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: ApplicationPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("application");
   const [searchQuery, setSearchQuery] = useState("");
-  const [scrolled, setScrolled] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const handleScroll = useCallback(() => {
-    if (scrollRef.current) {
-      setScrolled(scrollRef.current.scrollTop > 20);
-    }
-  }, []);
-
   const handleNavSelect = (key: string) => {
     setSelectedNav(key);
     onNavigate?.(key);
@@ -275,7 +269,7 @@ export function ApplicationPage({ onNavigate }: ApplicationPageProps) {
         selectedKey={selectedNav}
         onSelect={handleNavSelect}
         width={220}
-        header={<SidebarHeader />}
+        header={<SidebarHeader projectName={projectName} />}
         footer={
           <span
             style={{
@@ -303,7 +297,7 @@ export function ApplicationPage({ onNavigate }: ApplicationPageProps) {
         <AppGnb
           breadcrumbs={[
             {
-              label: "NLP Models",
+              label: projectName,
               icon: (
                 <Icon
                   name="folder_open"
@@ -325,69 +319,11 @@ export function ApplicationPage({ onNavigate }: ApplicationPageProps) {
           ]}
         />
 
-        {/* Title section (fixed) */}
-        <div
-          style={{
-            padding: "24px 24px 16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            flexShrink: 0,
-            borderBottom: scrolled
-              ? `1px solid ${colors.border.secondary}`
-              : "1px solid transparent",
-            transition: "border-color 0.2s ease",
-          }}
+        <ListPage
+          title={<PageTitle>Application</PageTitle>}
+          description={<PageDescription>View and manage applications in the project.</PageDescription>}
+          actions={<CreateButton />}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <h1
-              style={{
-                fontSize: 24,
-                fontWeight: 600,
-                lineHeight: "32px",
-                color: colors.text.primary,
-                fontFamily: ff,
-                margin: 0,
-              }}
-            >
-              Application
-            </h1>
-            <CreateButton />
-          </div>
-          <p
-            style={{
-              fontSize: 15,
-              fontWeight: 400,
-              lineHeight: "24px",
-              color: colors.text.secondary,
-              fontFamily: ff,
-              margin: 0,
-            }}
-          >
-            View and manage applications in the project.
-          </p>
-        </div>
-
-        {/* Content */}
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          style={{ flex: 1, overflow: "auto" }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              padding: 24,
-            }}
-          >
             {/* Search & Filter bar */}
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               {/* Search input */}
@@ -461,7 +397,7 @@ export function ApplicationPage({ onNavigate }: ApplicationPageProps) {
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                gap: "32px 16px",
+                gap: "32px 8px",
               }}
             >
               {APP_ITEMS.map((item) => (
@@ -484,8 +420,7 @@ export function ApplicationPage({ onNavigate }: ApplicationPageProps) {
                 />
               ))}
             </div>
-          </div>
-        </div>
+        </ListPage>
       </div>
     </div>
   );

@@ -42,32 +42,34 @@ export interface TextFieldProps
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────────
+const v = (name: string, fb: string) => `var(${name}, ${fb})`;
+
 function getBorderColor(
   state: TextFieldState,
   focused: boolean,
   hovered: boolean,
   pressed: boolean,
 ): string {
-  if (state === "disabled") return colorBorder.disabled;
-  if (state === "error") return colorBorder.danger;
-  if (focused) return colorBorder.interactive.runwayPrimary;
-  if (pressed) return colorBorder.interactive.runwayPrimaryPressed;
-  if (hovered) return colorBorder.interactive.runwayPrimaryHovered;
-  return colorBorder.interactive.secondary;
+  if (state === "disabled") return v("--ds-border-disabled", colorBorder.disabled);
+  if (state === "error") return v("--ds-border-danger", colorBorder.danger);
+  if (focused) return v("--ds-border-interactive-runway-primary", colorBorder.interactive.runwayPrimary);
+  if (pressed) return v("--ds-border-interactive-runway-primary-pressed", colorBorder.interactive.runwayPrimaryPressed);
+  if (hovered) return v("--ds-border-interactive-runway-primary-hovered", colorBorder.interactive.runwayPrimaryHovered);
+  return v("--ds-border-interactive-secondary", colorBorder.interactive.secondary);
 }
 
 function getBgColor(state: TextFieldState, hovered: boolean): string {
-  if (state === "disabled") return colorBg.disabled;
-  if (hovered) return colorBg.interactive.secondaryHovered;
-  return colorBg.primary;
+  if (state === "disabled") return v("--ds-bg-disabled", colorBg.disabled);
+  if (hovered) return v("--ds-bg-interactive-secondary-hovered", colorBg.interactive.secondaryHovered);
+  return v("--ds-bg-primary", colorBg.primary);
 }
 
 const HELP_STATUS_COLORS: Record<HelpMessageStatus, string> = {
-  default: colorText.tertiary,
-  error: colorText.danger,
-  success: colorText.success,
-  info: colorText.info,
-  warning: colorText.warning,
+  default: `var(--ds-text-tertiary, ${colorText.tertiary})`,
+  error: `var(--ds-text-danger, ${colorText.danger})`,
+  success: `var(--ds-text-success, ${colorText.success})`,
+  info: `var(--ds-text-info, ${colorText.info})`,
+  warning: `var(--ds-text-warning, ${colorText.warning})`,
 };
 
 const HELP_STATUS_ICONS: Record<string, string> = {
@@ -146,8 +148,8 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
       fontWeight: fontWeight.medium,
       lineHeight: "16px",
       color: isDisabled
-        ? colorText.disabled
-        : colorText.interactive.secondary,
+        ? v("--ds-text-disabled", colorText.disabled)
+        : v("--ds-text-interactive-secondary", colorText.interactive.secondary),
       userSelect: "none",
     };
 
@@ -178,7 +180,7 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
       fontSize: 14,
       fontWeight: fontWeight.regular,
       lineHeight: "16px",
-      color: isDisabled ? colorText.disabled : colorText.primary,
+      color: isDisabled ? v("--ds-text-disabled", colorText.disabled) : v("--ds-text-primary", colorText.primary),
       cursor: isDisabled ? "not-allowed" : "text",
       minWidth: 0,
       width: "100%",
@@ -220,7 +222,7 @@ export const TextField = React.forwardRef<HTMLInputElement, TextFieldProps>(
                 fontSize: 12,
                 fontWeight: fontWeight.regular,
                 lineHeight: "16px",
-                color: colorText.tertiary,
+                color: v("--ds-text-tertiary", colorText.tertiary),
                 flexShrink: 0,
               }}>
                 {currentLength}/{maxLength}

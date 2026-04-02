@@ -7,23 +7,25 @@ const ff = "'Pretendard', sans-serif";
 // Shared: Page Title Section (fixed, with scroll-aware border)
 // ─────────────────────────────────────────────────────────────────────────────
 interface PageTitleSectionProps {
-  /** Left-side content: back button + title, or just title */
-  left: React.ReactNode;
+  /** Title node (h1) */
+  title: React.ReactNode;
+  /** Optional description below the title row */
+  description?: React.ReactNode;
   /** Right-side action buttons (Create, More, etc.) */
-  right?: React.ReactNode;
+  actions?: React.ReactNode;
   /** Whether the scroll container has scrolled (shows bottom border) */
   scrolled?: boolean;
 }
 
-function PageTitleSection({ left, right, scrolled = false }: PageTitleSectionProps) {
+function PageTitleSection({ title, description, actions, scrolled = false }: PageTitleSectionProps) {
   const { colors } = useTheme();
   return (
     <div
       style={{
         padding: "24px 24px 16px",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
+        flexDirection: "column",
+        gap: 8,
         flexShrink: 0,
         borderBottom: scrolled
           ? `1px solid ${colors.border.secondary}`
@@ -31,14 +33,15 @@ function PageTitleSection({ left, right, scrolled = false }: PageTitleSectionPro
         transition: "border-color 0.2s ease",
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
-        {left}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {title}
+        {actions && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {actions}
+          </div>
+        )}
       </div>
-      {right && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          {right}
-        </div>
-      )}
+      {description}
     </div>
   );
 }
@@ -111,13 +114,9 @@ export function ListPage({ title, description, actions, children }: ListPageProp
     <>
       <PageTitleSection
         scrolled={scrolled}
-        left={
-          <>
-            {title}
-            {description}
-          </>
-        }
-        right={actions}
+        title={title}
+        description={description}
+        actions={actions}
       />
       <div
         ref={scrollRef}
@@ -161,7 +160,7 @@ export function DetailPage({ title, onBack, actions, children }: DetailPageProps
     <>
       <PageTitleSection
         scrolled={scrolled}
-        left={
+        title={
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {onBack && (
               <button
@@ -183,7 +182,7 @@ export function DetailPage({ title, onBack, actions, children }: DetailPageProps
             {title}
           </div>
         }
-        right={actions}
+        actions={actions}
       />
       <div
         ref={scrollRef}

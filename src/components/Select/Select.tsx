@@ -4,6 +4,8 @@ import { spacing, borderRadius } from "../../tokens/spacing";
 import { fontFamily, fontWeight } from "../../tokens/typography";
 import Icon from "../Icon/Icon";
 
+const v = (name: string, fb: string) => `var(${name}, ${fb})`;
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────────────
@@ -85,16 +87,16 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
     }, [open]);
 
     const getBorderColor = () => {
-      if (isDisabled) return colorBorder.disabled;
-      if (isError) return colorBorder.danger;
-      if (open || focused) return colorBorder.interactive.runwayPrimary;
-      if (hovered) return colorBorder.primary;
-      return colorBorder.secondary;
+      if (isDisabled) return v("--ds-border-disabled", colorBorder.disabled);
+      if (isError) return v("--ds-border-danger", colorBorder.danger);
+      if (open || focused) return v("--ds-border-interactive-runway-primary", colorBorder.interactive.runwayPrimary);
+      if (hovered) return v("--ds-border-primary", colorBorder.primary);
+      return v("--ds-border-secondary", colorBorder.secondary);
     };
 
     const getChevronColor = () => {
-      if (isDisabled) return colorText.disabled;
-      return colorText.tertiary;
+      if (isDisabled) return v("--ds-text-disabled", colorText.disabled);
+      return v("--ds-text-tertiary", colorText.tertiary);
     };
 
     // Wrapper
@@ -114,8 +116,8 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       fontWeight: fontWeight.medium,
       lineHeight: "16px",
       color: isDisabled
-        ? colorText.disabled
-        : colorText.interactive.secondary,
+        ? v("--ds-text-disabled", colorText.disabled)
+        : v("--ds-text-interactive-secondary", colorText.interactive.secondary),
       userSelect: "none",
     };
 
@@ -129,7 +131,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       boxSizing: "border-box",
       borderRadius: borderRadius.lg,
       border: `1px solid ${getBorderColor()}`,
-      backgroundColor: isDisabled ? colorBg.disabled : colorBg.primary,
+      backgroundColor: isDisabled ? v("--ds-bg-disabled", colorBg.disabled) : v("--ds-bg-primary", colorBg.primary),
       cursor: isDisabled ? "not-allowed" : "pointer",
       transition: "border-color 0.15s ease",
       outline: "none",
@@ -144,9 +146,9 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       lineHeight: "16px",
       color: selectedOption
         ? isDisabled
-          ? colorText.disabled
-          : colorText.primary
-        : colorText.tertiary,
+          ? v("--ds-text-disabled", colorText.disabled)
+          : v("--ds-text-primary", colorText.primary)
+        : v("--ds-text-tertiary", colorText.tertiary),
       opacity: selectedOption ? 1 : 0.7,
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -160,9 +162,9 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       top: "calc(100% + 4px)",
       left: 0,
       right: 0,
-      backgroundColor: colorBg.primary,
+      backgroundColor: v("--ds-bg-primary", colorBg.primary),
       borderRadius: borderRadius.lg,
-      border: `1px solid ${colorBorder.secondary}`,
+      border: `1px solid ${v("--ds-border-secondary", colorBorder.secondary)}`,
       boxShadow: `0 4px 16px rgba(0,0,0,0.08)`,
       zIndex: 1000,
       overflow: "hidden",
@@ -177,7 +179,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       fontSize: 12,
       fontWeight: fontWeight.medium,
       lineHeight: "16px",
-      color: isError ? colorText.danger : colorText.tertiary,
+      color: isError ? v("--ds-text-danger", colorText.danger) : v("--ds-text-tertiary", colorText.tertiary),
     };
 
     const handleSelect = (optionValue: string) => {
@@ -274,10 +276,10 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                   padding: `${spacing[4]} ${spacing[8]}`,
                   cursor: isOptionDisabled ? "not-allowed" : "pointer",
                   backgroundColor: isSelected
-                    ? colorBg.interactive.runwaySelected
+                    ? v("--ds-bg-interactive-runway-selected", colorBg.interactive.runwaySelected)
                     : isOptionHovered
-                    ? colorBg.tertiary
-                    : colorBg.primary,
+                    ? v("--ds-bg-tertiary", colorBg.tertiary)
+                    : v("--ds-bg-primary", colorBg.primary),
                   transition: "background-color 0.1s ease",
                 };
 
@@ -287,10 +289,10 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
                   fontWeight: fontWeight.medium,
                   lineHeight: "16px",
                   color: isOptionDisabled
-                    ? colorText.disabled
+                    ? v("--ds-text-disabled", colorText.disabled)
                     : isSelected
-                    ? colorText.primary
-                    : colorText.secondary,
+                    ? v("--ds-text-primary", colorText.primary)
+                    : v("--ds-text-secondary", colorText.secondary),
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",

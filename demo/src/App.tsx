@@ -37,10 +37,16 @@ const NAV_TO_TAB: Record<string, TabKey> = {
 export default function App() {
   const { isDark, toggle, colors } = useTheme();
   const [activeTab, setActiveTab] = useState<TabKey>("lnb");
+  const [selectedProject, setSelectedProject] = useState<string>("NLP Models");
 
   const handleLnbNavigate = useCallback((navKey: string) => {
     const tabKey = NAV_TO_TAB[navKey];
     if (tabKey) setActiveTab(tabKey);
+  }, []);
+
+  const handleSelectProject = useCallback((projectName: string) => {
+    setSelectedProject(projectName);
+    setActiveTab("catalog");
   }, []);
 
   return (
@@ -113,12 +119,12 @@ export default function App() {
       {/* Page content */}
       <div style={{ flex: 1, overflow: "hidden" }}>
         {activeTab === "ws-general" && <WorkspaceGeneralPage onNavigate={handleLnbNavigate} />}
-        {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} />}
-        {activeTab === "projects" && <ProjectsPage onNavigate={handleLnbNavigate} />}
+        {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
+        {activeTab === "projects" && <ProjectsPage onNavigate={handleLnbNavigate} onSelectProject={handleSelectProject} />}
         {activeTab === "lnb" && <LnbWorkspacePage />}
-        {activeTab === "platform" && <PlatformAppsPage onNavigate={handleLnbNavigate} />}
-        {activeTab === "catalog" && <CatalogPage onNavigate={handleLnbNavigate} />}
-        {activeTab === "data" && <DataConnectionsPage onNavigate={handleLnbNavigate} />}
+        {activeTab === "platform" && <PlatformAppsPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
+        {activeTab === "catalog" && <CatalogPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
+        {activeTab === "data" && <DataConnectionsPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "form" && <FormControlsPage />}
       </div>
     </div>

@@ -81,9 +81,10 @@ const APPS = [
 
 interface PlatformAppsPageProps {
   onNavigate?: (key: string) => void;
+  projectName?: string;
 }
 
-export function PlatformAppsPage({ onNavigate }: PlatformAppsPageProps) {
+export function PlatformAppsPage({ onNavigate, projectName = "NLP Models" }: PlatformAppsPageProps) {
   const { colors, isDark } = useTheme();
   const [selectedNav, setSelectedNav] = useState("platform");
   const [checkedId, setCheckedId] = useState<string | null>(null);
@@ -112,7 +113,7 @@ export function PlatformAppsPage({ onNavigate }: PlatformAppsPageProps) {
                 width: 32,
                 height: 32,
                 borderRadius: 5.3,
-                backgroundColor: "#dc2626",
+                backgroundColor: "#bf6a40",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -185,7 +186,7 @@ export function PlatformAppsPage({ onNavigate }: PlatformAppsPageProps) {
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: "32px 16px",
+              gap: "32px 8px",
             }}
           >
             {APPS.map((app) => {

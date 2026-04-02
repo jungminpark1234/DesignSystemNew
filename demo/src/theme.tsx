@@ -72,6 +72,22 @@ function setCssVars(colors: ThemeColors) {
   root.style.setProperty("--ds-border-primary", colors.border.primary);
   root.style.setProperty("--ds-border-secondary", colors.border.secondary);
   root.style.setProperty("--ds-border-tertiary", colors.border.tertiary);
+  root.style.setProperty("--ds-border-disabled", colors.border.disabled);
+  root.style.setProperty("--ds-border-danger", colors.border.danger);
+  root.style.setProperty("--ds-border-interactive-secondary", colors.border.interactive.secondary);
+  root.style.setProperty("--ds-border-interactive-secondary-hovered", colors.border.interactive.secondaryHovered);
+  root.style.setProperty("--ds-border-interactive-secondary-pressed", colors.border.interactive.secondaryPressed);
+  root.style.setProperty("--ds-border-interactive-runway-primary", colors.border.interactive.runwayPrimary);
+  root.style.setProperty("--ds-border-interactive-runway-primary-hovered", colors.border.interactive.runwayPrimaryHovered);
+  root.style.setProperty("--ds-border-interactive-runway-primary-pressed", colors.border.interactive.runwayPrimaryPressed);
+
+  // bg - interactive
+  root.style.setProperty("--ds-bg-interactive-secondary", colors.bg.interactive.secondary);
+  root.style.setProperty("--ds-bg-interactive-secondary-hovered", colors.bg.interactive.secondaryHovered);
+  root.style.setProperty("--ds-bg-interactive-secondary-pressed", colors.bg.interactive.secondaryPressed);
+  root.style.setProperty("--ds-bg-interactive-runway-primary", colors.bg.interactive.runwayPrimary);
+  root.style.setProperty("--ds-bg-interactive-runway-primary-hovered", colors.bg.interactive.runwayPrimaryHovered);
+  root.style.setProperty("--ds-bg-interactive-runway-selected", colors.bg.interactive.runwaySelected);
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

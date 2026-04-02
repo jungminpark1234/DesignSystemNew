@@ -4,6 +4,8 @@ import { borderRadius } from "../../tokens/spacing";
 import { fontFamily, fontWeight } from "../../tokens/typography";
 import Icon from "../Icon/Icon";
 
+const v = (name: string, fb: string) => `var(${name}, ${fb})`;
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────────────
@@ -94,13 +96,6 @@ function SortIcon({ direction }: { direction: SortDirection }) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Kebab / menu icon — uses more-vertical Icon component
-// ──────────────────────────────────────────────────────────────────────────────
-function MenuIcon() {
-  return <Icon name="more-vertical" size={16} color={colorText.tertiary} />;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Checkbox cell
 // ──────────────────────────────────────────────────────────────────────────────
 function CheckboxCell({
@@ -119,7 +114,7 @@ function CheckboxCell({
   }, [indeterminate]);
 
   return (
-    <td style={{ width: 48, padding: "0 12px", textAlign: "center", verticalAlign: "middle" }}>
+    <td style={{ width: 48, padding: 16, textAlign: "center", verticalAlign: "middle" }}>
       <input
         ref={ref}
         type="checkbox"
@@ -136,9 +131,9 @@ function CheckboxCell({
 // Styling helpers
 // ──────────────────────────────────────────────────────────────────────────────
 const importanceTextColor: Record<ColumnImportance, string> = {
-  primary:      colorText.primary,
-  secondary:    colorText.secondary,
-  unauthorized: colorText.disabled,
+  primary:      `var(--ds-text-primary, ${colorText.primary})`,
+  secondary:    `var(--ds-text-secondary, ${colorText.secondary})`,
+  unauthorized: `var(--ds-text-disabled, ${colorText.disabled})`,
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -214,14 +209,14 @@ export function Table<T extends Record<string, unknown>>({
   };
 
   const headerCellStyle = (col: TableColumn<T>): React.CSSProperties => ({
-    padding: "12px 16px",
+    padding: 16,
     textAlign: "left",
-    fontWeight: fontWeight.semibold,
-    fontSize: 12,
-    color: colorText.tertiary,
-    backgroundColor: colorBg.secondary,
-    borderBottom: `1px solid ${colorBorder.secondary}`,
-    borderTop: `1px solid ${colorBorder.secondary}`,
+    fontWeight: fontWeight.medium,
+    fontSize: 14,
+    lineHeight: "16px",
+    color: v("--ds-text-primary", colorText.primary),
+    backgroundColor: v("--ds-bg-tertiary", colorBg.tertiary),
+    borderBottom: `1px solid ${v("--ds-border-tertiary", colorBorder.tertiary)}`,
     whiteSpace: "nowrap",
     userSelect: "none",
     cursor: col.sortable ? "pointer" : "default",
@@ -229,35 +224,41 @@ export function Table<T extends Record<string, unknown>>({
   });
 
   const bodyCellStyle = (importance: ColumnImportance = "primary", isSelected: boolean, isHovered: boolean): React.CSSProperties => ({
-    padding: "0 16px",
+    padding: 16,
     height: 48,
     color: importanceTextColor[importance],
-    fontWeight: importance === "primary" ? 400 : 400,
-    borderBottom: `1px solid ${colorBorder.tertiary}`,
+    fontWeight: importance === "primary" ? fontWeight.medium : fontWeight.regular,
+    fontSize: 14,
+    lineHeight: "16px",
+    borderBottom: `1px solid ${v("--ds-border-tertiary", colorBorder.tertiary)}`,
     verticalAlign: "middle",
-    backgroundColor: isSelected ? colorBg.interactive.runwaySelected : isHovered ? colorBg.secondary : colorBg.primary,
+    backgroundColor: isSelected
+      ? v("--ds-bg-interactive-runway-selected", colorBg.interactive.runwaySelected)
+      : isHovered
+        ? v("--ds-bg-interactive-secondary-hovered", colorBg.interactive.secondaryHovered)
+        : v("--ds-bg-primary", colorBg.primary),
     transition: "background-color 0.1s ease",
   });
 
   const actionCellStyle: React.CSSProperties = {
-    padding: "0 8px",
+    padding: "0 16px",
     height: 48,
     verticalAlign: "middle",
-    borderBottom: `1px solid ${colorBorder.tertiary}`,
+    borderBottom: `1px solid ${v("--ds-border-tertiary", colorBorder.tertiary)}`,
     whiteSpace: "nowrap",
   };
 
   return (
     <div
       className={className}
-      style={{ overflowX: "auto", borderRadius: borderRadius.lg, border: `1px solid ${colorBorder.secondary}` }}
+      style={{ overflowX: "auto", overflow: "clip", borderRadius: borderRadius.xl, border: `1px solid ${v("--ds-border-secondary", colorBorder.secondary)}` }}
     >
       <table style={tableStyle}>
         <thead>
           <tr>
             {/* Checkbox header */}
             {selectable && (
-              <th style={{ width: 48, padding: "0 12px", backgroundColor: colorBg.secondary, borderBottom: `1px solid ${colorBorder.secondary}`, borderTop: `1px solid ${colorBorder.secondary}` }}>
+              <th style={{ width: 48, padding: 16, backgroundColor: v("--ds-bg-tertiary", colorBg.tertiary), borderBottom: `1px solid ${v("--ds-border-tertiary", colorBorder.tertiary)}` }}>
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -294,7 +295,7 @@ export function Table<T extends Record<string, unknown>>({
 
             {/* Menu header */}
             {showMenu && (
-              <th style={{ width: 48, backgroundColor: colorBg.secondary, borderBottom: `1px solid ${colorBorder.secondary}`, borderTop: `1px solid ${colorBorder.secondary}` }} />
+              <th style={{ width: 80, padding: "16px 24px", backgroundColor: v("--ds-bg-tertiary", colorBg.tertiary), borderBottom: `1px solid ${v("--ds-border-tertiary", colorBorder.tertiary)}` }} />
             )}
           </tr>
         </thead>
@@ -304,7 +305,7 @@ export function Table<T extends Record<string, unknown>>({
             <tr>
               <td
                 colSpan={columns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0) + (showMenu ? 1 : 0)}
-                style={{ textAlign: "center", padding: 32, color: colorText.tertiary }}
+                style={{ textAlign: "center", padding: 32, color: v("--ds-text-tertiary", colorText.tertiary) }}
               >
                 <span>Loading…</span>
               </td>
@@ -313,7 +314,7 @@ export function Table<T extends Record<string, unknown>>({
             <tr>
               <td
                 colSpan={columns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0) + (showMenu ? 1 : 0)}
-                style={{ textAlign: "center", padding: 32, color: colorText.disabled }}
+                style={{ textAlign: "center", padding: 32, color: v("--ds-text-disabled", colorText.disabled) }}
               >
                 {emptyMessage}
               </td>
@@ -360,7 +361,7 @@ export function Table<T extends Record<string, unknown>>({
 
                   {/* Actions */}
                   {hasActions && (
-                    <td style={{ ...actionCellStyle, backgroundColor: isSelected ? colorBg.interactive.runwaySelected : isHovered ? colorBg.secondary : colorBg.primary }}>
+                    <td style={{ ...actionCellStyle, backgroundColor: isSelected ? v("--ds-bg-interactive-runway-selected", colorBg.interactive.runwaySelected) : isHovered ? v("--ds-bg-interactive-secondary-hovered", colorBg.interactive.secondaryHovered) : v("--ds-bg-primary", colorBg.primary) }}>
                       <span style={{ display: "inline-flex", gap: 4 }}>
                         {actions!.map((action, ai) => (
                           <button
@@ -374,9 +375,9 @@ export function Table<T extends Record<string, unknown>>({
                               padding: "4px 8px",
                               height: 28,
                               borderRadius: 6,
-                              border: `1px solid ${colorBorder.secondary}`,
-                              backgroundColor: colorBg.primary,
-                              color: action.destructive ? colorText.danger : colorText.secondary,
+                              border: `1px solid ${v("--ds-border-secondary", colorBorder.secondary)}`,
+                              backgroundColor: v("--ds-bg-primary", colorBg.primary),
+                              color: action.destructive ? v("--ds-text-danger", colorText.danger) : v("--ds-text-secondary", colorText.secondary),
                               fontFamily: fontFamily.body,
                               fontSize: 12,
                               fontWeight: fontWeight.medium,
@@ -392,28 +393,30 @@ export function Table<T extends Record<string, unknown>>({
                     </td>
                   )}
 
-                  {/* Menu */}
+                  {/* Menu — only visible on hover */}
                   {showMenu && (
-                    <td style={{ ...actionCellStyle, width: 48, textAlign: "center", backgroundColor: isSelected ? colorBg.interactive.runwaySelected : isHovered ? colorBg.secondary : colorBg.primary }}>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onMenuClick?.(row, rowIndex); }}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: 32,
-                          height: 32,
-                          borderRadius: 6,
-                          border: "none",
-                          backgroundColor: "transparent",
-                          cursor: "pointer",
-                          color: colorText.tertiary,
-                        }}
-                        aria-label="More options"
-                      >
-                        <MenuIcon />
-                      </button>
+                    <td style={{ ...actionCellStyle, width: 80, textAlign: "center", padding: "0 24px", backgroundColor: isSelected ? v("--ds-bg-interactive-runway-selected", colorBg.interactive.runwaySelected) : isHovered ? v("--ds-bg-interactive-secondary-hovered", colorBg.interactive.secondaryHovered) : v("--ds-bg-primary", colorBg.primary) }}>
+                      {isHovered && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onMenuClick?.(row, rowIndex); }}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 32,
+                            height: 32,
+                            borderRadius: borderRadius["3xl"],
+                            border: "none",
+                            backgroundColor: "transparent",
+                            cursor: "pointer",
+                            color: v("--ds-text-tertiary", colorText.tertiary),
+                          }}
+                          aria-label="More options"
+                        >
+                          <Icon name="more-vertical" size={24} color={v("--ds-text-tertiary", colorText.tertiary)} />
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>

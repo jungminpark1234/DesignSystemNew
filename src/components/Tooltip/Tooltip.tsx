@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import { colorText, colorBg, colorBorder } from "../../tokens/colors";
 import { borderRadius } from "../../tokens/spacing";
 import { fontFamily, fontWeight } from "../../tokens/typography";
@@ -26,7 +27,7 @@ export type TooltipStyle = "default" | "inverse";
 export interface TooltipProps {
   /** Tooltip content text */
   content: string;
-  /** Arrow direction */
+  /** Placement relative to trigger */
   direction?: TooltipDirection;
   /** Visual style: default = dark, inverse = light */
   tooltipStyle?: TooltipStyle;
@@ -35,68 +36,6 @@ export interface TooltipProps {
   /** Delay before showing (ms). Default: 200 */
   delay?: number;
   className?: string;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Arrow SVG (8 × 8 rotated square)
-// ──────────────────────────────────────────────────────────────────────────────
-function Arrow({
-  direction,
-  bg,
-}: {
-  direction: TooltipDirection;
-  bg: string;
-}) {
-  if (direction === "none") return null;
-
-  const isAbove = direction.startsWith("above");
-  const isBelow = direction.startsWith("below");
-  const isStart = direction.startsWith("start");
-  const isEnd   = direction.startsWith("end");
-
-  const arrowSize = 10;
-  const half = arrowSize / 2;
-
-  // For above/below: horizontal arrow; for start/end: vertical arrow
-  const isHorizontal = isAbove || isBelow;
-
-  const wrapperStyle: React.CSSProperties = isHorizontal
-    ? {
-        display: "flex",
-        justifyContent:
-          direction.endsWith("left")   ? "flex-start" :
-          direction.endsWith("right")  ? "flex-end"   : "center",
-        width: "100%",
-        order: isAbove ? 1 : -1,
-      }
-    : {
-        display: "flex",
-        flexDirection: "column",
-        justifyContent:
-          direction.endsWith("top")    ? "flex-start" :
-          direction.endsWith("bottom") ? "flex-end"   : "center",
-        height: "100%",
-        order: isStart ? 1 : -1,
-      };
-
-  const squareStyle: React.CSSProperties = {
-    width: arrowSize,
-    height: arrowSize,
-    backgroundColor: bg,
-    transform: "rotate(45deg)",
-    borderRadius: 2,
-    flexShrink: 0,
-    margin: isAbove ? `-${half}px 8px 0` :
-            isBelow ? `0 8px -${half}px` :
-            isStart ? `0 -${half}px 0 0` :
-                      `0 0 0 -${half}px`,
-  };
-
-  return (
-    <span style={wrapperStyle}>
-      <span style={squareStyle} />
-    </span>
-  );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -111,66 +50,56 @@ export const Tooltip: React.FC<TooltipProps> = ({
   className,
 }) => {
   const [visible, setVisible] = useState(false);
+  const [style, setStyle] = useState<React.CSSProperties>({ position: "fixed", opacity: 0 });
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
 
   const isDark = tooltipStyle === "default";
-  const bg     = isDark ? colorBg.inverseBolder : colorBg.primary;
+  const bg = isDark ? colorBg.inverseBolder : colorBg.secondary;
   const textColor = isDark ? colorText.inverse : colorText.primary;
-  const shadow = isDark
-    ? "0 4px 8px rgba(0,0,0,0.16), 0 0 4px rgba(0,0,0,0.12)"
-    : "0 4px 8px rgba(0,0,0,0.10), 0 0 4px rgba(0,0,0,0.08)";
+  const shadow = "0 4px 8px rgba(0,0,0,0.16), 0 0 4px rgba(0,0,0,0.12)";
   const border = isDark ? "none" : `1px solid ${colorBorder.secondary}`;
 
-  const isAbove = direction.startsWith("above");
-  const isBelow = direction.startsWith("below");
-  const isStart = direction.startsWith("start");
-  const isEnd   = direction.startsWith("end");
+  const computePos = useCallback(() => {
+    if (!triggerRef.current || !tipRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    const t = tipRef.current.getBoundingClientRect();
+    const gap = 8;
+    const pad = 24;
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
 
-  const tooltipPositionStyle: React.CSSProperties = {
-    position: "absolute",
-    zIndex: 1100,
-    // Vertical placement
-    ...(isAbove && { bottom: "calc(100% + 4px)" }),
-    ...(isBelow && { top:    "calc(100% + 4px)" }),
-    // Horizontal placement
-    ...(direction.endsWith("left")   && { left: 0 }),
-    ...(direction.endsWith("right")  && { right: 0 }),
-    ...(direction.endsWith("center") && { left: "50%", transform: "translateX(-50%)" }),
-    // Side placements
-    ...(isStart && { right: "calc(100% + 4px)" }),
-    ...(isEnd   && { left:  "calc(100% + 4px)" }),
-    ...(direction.endsWith("top")    && { top: 0 }),
-    ...(direction.endsWith("bottom") && { bottom: 0 }),
-    ...(direction.endsWith("middle") && { top: "50%", transform: "translateY(-50%)" }),
-    // None — centered above
-    ...(direction === "none" && {
-      bottom: "calc(100% + 4px)",
-      left: "50%",
-      transform: "translateX(-50%)",
-    }),
-  };
+    const isAbove = direction.startsWith("above") || direction === "none";
+    const isBelow = direction.startsWith("below");
+    const isStart = direction.startsWith("start");
+    const isEnd = direction.startsWith("end");
 
-  const isHorizontal = isAbove || isBelow || direction === "none";
+    let top = 0;
+    let left = 0;
 
-  const popupStyle: React.CSSProperties = {
-    display: isHorizontal ? "flex" : "inline-flex",
-    flexDirection: isHorizontal ? "column" : "row",
-    alignItems: "center",
-    backgroundColor: bg,
-    color: textColor,
-    border,
-    borderRadius: borderRadius.lg,
-    boxShadow: shadow,
-    padding: "8px 12px",
-    fontFamily: fontFamily.body,
-    fontSize: 14,
-    fontWeight: fontWeight.regular,
-    lineHeight: "16px",
-    whiteSpace: "nowrap",
-    pointerEvents: "none",
-    maxWidth: 280,
-    boxSizing: "border-box",
-  };
+    // Vertical
+    if (isAbove) top = r.top - gap - t.height;
+    else if (isBelow) top = r.bottom + gap;
+    else if (direction.endsWith("top")) top = r.top;
+    else if (direction.endsWith("bottom")) top = r.bottom - t.height;
+    else top = r.top + r.height / 2 - t.height / 2;
+
+    // Horizontal
+    if (direction.endsWith("left")) left = r.left;
+    else if (direction.endsWith("right")) left = r.right - t.width;
+    else if (direction.endsWith("center") || direction === "none") left = r.left + r.width / 2 - t.width / 2;
+    else if (isStart) left = r.left - gap - t.width;
+    else if (isEnd) left = r.right + gap;
+
+    // Clamp to viewport
+    if (left + t.width > vw - pad) left = vw - pad - t.width;
+    if (left < pad) left = pad;
+    if (top + t.height > vh - pad) top = vh - pad - t.height;
+    if (top < pad) top = pad;
+
+    setStyle({ position: "fixed", zIndex: 1100, pointerEvents: "none", top, left, opacity: 1 });
+  }, [direction]);
 
   const show = () => {
     timerRef.current = setTimeout(() => setVisible(true), delay);
@@ -178,12 +107,34 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const hide = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setVisible(false);
+    setStyle(s => ({ ...s, opacity: 0 }));
   };
+
+  useEffect(() => {
+    if (visible) requestAnimationFrame(() => computePos());
+  }, [visible, computePos]);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
+  const popupStyle: React.CSSProperties = {
+    backgroundColor: bg,
+    color: textColor,
+    border,
+    borderRadius: borderRadius.lg,
+    boxShadow: shadow,
+    padding: 12,
+    fontFamily: fontFamily.body,
+    fontSize: 12,
+    fontWeight: fontWeight.regular,
+    lineHeight: "16px",
+    whiteSpace: "pre-wrap",
+    maxWidth: 280,
+    boxSizing: "border-box",
+  };
+
   return (
     <span
+      ref={triggerRef}
       style={{ position: "relative", display: "inline-flex" }}
       onMouseEnter={show}
       onMouseLeave={hide}
@@ -191,18 +142,13 @@ export const Tooltip: React.FC<TooltipProps> = ({
       onBlur={hide}
     >
       {children}
-      {visible && (
-        <span style={tooltipPositionStyle} role="tooltip" className={className}>
-          <span style={popupStyle}>
-            {isAbove && <Arrow direction={direction} bg={bg} />}
-            {isStart && <Arrow direction={direction} bg={bg} />}
-            <span style={{ padding: "0 2px" }}>{content}</span>
-            {isBelow && <Arrow direction={direction} bg={bg} />}
-            {isEnd   && <Arrow direction={direction} bg={bg} />}
-            {direction === "none" && null}
-          </span>
-        </span>
-      )}
+      {visible &&
+        ReactDOM.createPortal(
+          <div ref={tipRef} style={style} role="tooltip" className={className}>
+            <div style={popupStyle}>{content}</div>
+          </div>,
+          document.body
+        )}
     </span>
   );
 };

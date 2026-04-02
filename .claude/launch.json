@@ -3,10 +3,11 @@
   "configurations": [
     {
       "name": "demo",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/opt/homebrew/bin/npx",
+      "runtimeArgs": ["vite"],
       "port": 5173,
-      "cwd": "demo"
+      "cwd": "demo",
+      "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
     }
   ]
 }

@@ -104,6 +104,15 @@ export type { GlobalNavProps, GlobalNavAction, GlobalNavUser } from "./component
 export { Pagination } from "./components/Pagination";
 export type { PaginationProps } from "./components/Pagination";
 
+// Card components
+export { GridCard } from "./components/GridCard";
+export type { GridCardProps } from "./components/GridCard";
+
+export { DefaultCard } from "./components/DefaultCard";
+
+export { ProjectCard } from "./components/ProjectCard";
+export type { ProjectCardProps } from "./components/ProjectCard";
+
 // Icons
 export { iconSvgMap } from "./icons";
 export type { IconName } from "./icons";

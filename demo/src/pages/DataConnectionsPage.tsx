@@ -160,9 +160,10 @@ function PagNumBtn({ num, selected, onClick }: { num: number; selected: boolean;
 /* ── Page ── */
 interface DataConnectionsPageProps {
   onNavigate?: (key: string) => void;
+  projectName?: string;
 }
 
-export function DataConnectionsPage({ onNavigate }: DataConnectionsPageProps) {
+export function DataConnectionsPage({ onNavigate, projectName = "NLP Models" }: DataConnectionsPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("data-connection");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set(["Athena Query"]));
@@ -198,7 +199,7 @@ export function DataConnectionsPage({ onNavigate }: DataConnectionsPageProps) {
               <div
                 style={{
                   width: 32, height: 32, borderRadius: 5.3,
-                  backgroundColor: colors.bg.warning,
+                  backgroundColor: "#bf6a40",
                   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                 }}
               >
@@ -221,7 +222,7 @@ export function DataConnectionsPage({ onNavigate }: DataConnectionsPageProps) {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10, color: colors.text.tertiary, lineHeight: "14px", fontFamily: "'Pretendard', sans-serif" }}>Projects</div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: colors.text.primary, lineHeight: "16px", fontFamily: "'Pretendard', sans-serif" }}>NLP Models</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: colors.text.primary, lineHeight: "16px", fontFamily: "'Pretendard', sans-serif" }}>{projectName}</div>
               </div>
             </div>
           </>
@@ -236,7 +237,7 @@ export function DataConnectionsPage({ onNavigate }: DataConnectionsPageProps) {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
         <AppGnb
           breadcrumbs={[
-            { label: "NLP Models", icon: <Icon name="folder_open" size={20} color={colors.icon.secondary} /> },
+            { label: projectName, icon: <Icon name="folder_open" size={20} color={colors.icon.secondary} /> },
             { label: "Setting", icon: <Icon name="setting" size={20} color={colors.icon.secondary} /> },
             { label: "Data connections" },
           ]}

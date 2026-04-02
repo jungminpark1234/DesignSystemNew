@@ -59,7 +59,7 @@ function ProjectHeader() {
       <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 12px 8px" }}>
         <div
           style={{
-            width: 32, height: 32, borderRadius: 5.3, backgroundColor: colors.bg.warningSubtle,
+            width: 32, height: 32, borderRadius: 5.3, backgroundColor: "#bf6a40",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}
         >
