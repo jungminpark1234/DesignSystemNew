@@ -121,7 +121,7 @@ export default function App() {
         {activeTab === "ws-general" && <WorkspaceGeneralPage onNavigate={handleLnbNavigate} />}
         {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "projects" && <ProjectsPage onNavigate={handleLnbNavigate} onSelectProject={handleSelectProject} />}
-        {activeTab === "lnb" && <LnbWorkspacePage />}
+        {activeTab === "lnb" && <LnbWorkspacePage projectName={selectedProject} />}
         {activeTab === "platform" && <PlatformAppsPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "catalog" && <CatalogPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "data" && <DataConnectionsPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}

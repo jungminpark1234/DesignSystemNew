@@ -1,7 +1,7 @@
 import React from "react";
-import { colorBg, colorText, primitiveColors } from "../../tokens/colors";
-import { borderRadius } from "../../tokens/spacing";
-import { fontFamily, fontWeight } from "../../tokens/typography";
+import { colorBg, colorText } from "../../tokens/colors";
+import { spacing, borderRadius } from "../../tokens/spacing";
+import { fontFamily, fontWeight, body } from "../../tokens/typography";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -72,14 +72,15 @@ export const Badge: React.FC<BadgeProps> = ({
         justifyContent: "center",
         minWidth: 20,
         height: 20,
-        padding: type === "text" ? "0 6px" : "0 4px",
+        padding: type === "text" ? `0 ${spacing[8]}` : `0 ${spacing[4]}`,
         borderRadius: borderRadius.rounded,
         backgroundColor: bg,
         color,
-        fontFamily: fontFamily.body,
-        fontSize: 10,
-        fontWeight: fontWeight.medium,
-        lineHeight: "16px",
+        fontFamily: body.sm.medium.fontFamily,
+        fontSize: body.sm.medium.fontSize,
+        fontWeight: body.sm.medium.fontWeight,
+        lineHeight: body.sm.medium.lineHeight,
+        letterSpacing: body.sm.medium.letterSpacing,
         whiteSpace: "nowrap",
         flexShrink: 0,
         boxSizing: "border-box",

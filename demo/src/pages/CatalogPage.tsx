@@ -88,6 +88,7 @@ export function CatalogPage({ onNavigate, projectName = "NLP Models" }: CatalogP
           setDetailApp(null);
           handleNavSelect(key);
         }}
+        projectName={projectName}
       />
     );
   }

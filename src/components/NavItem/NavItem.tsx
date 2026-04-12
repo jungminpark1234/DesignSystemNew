@@ -163,7 +163,7 @@ export const NavItem: React.FC<NavItemProps> = ({
         {hasSubmenu && (
           <span style={{ color: iconColor }}>
             <Icon
-              name={expanded ? "arrow2_up" : "arrow2_down"}
+              name={expanded ? "chevron-up" : "chevron-down"}
               size={16}
               color={iconColor}
             />

@@ -8,6 +8,14 @@
       "port": 5173,
       "cwd": "demo",
       "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "/opt/homebrew/bin/npx",
+      "runtimeArgs": ["vite"],
+      "port": 5174,
+      "cwd": "docs",
+      "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
     }
   ]
 }

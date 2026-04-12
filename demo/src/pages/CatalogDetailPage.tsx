@@ -37,10 +37,11 @@ interface CatalogDetailPageProps {
   item: CatalogItemData;
   onBack: () => void;
   onNavigate?: (key: string) => void;
+  projectName?: string;
 }
 
 // ── Sidebar header ──────────────────────────────────────────────────────────
-function SidebarHeader() {
+function SidebarHeader({ projectName = "NLP Models" }: { projectName?: string }) {
   const { colors } = useTheme();
   return (
     <>
@@ -59,7 +60,7 @@ function SidebarHeader() {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 10, color: colors.text.tertiary, lineHeight: "14px", fontFamily: "'Pretendard', sans-serif" }}>Projects</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: colors.text.primary, lineHeight: "16px", fontFamily: "'Pretendard', sans-serif" }}>NLP Models</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: colors.text.primary, lineHeight: "16px", fontFamily: "'Pretendard', sans-serif" }}>{projectName}</div>
         </div>
       </div>
     </>
@@ -126,7 +127,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
-export function CatalogDetailPage({ item, onBack, onNavigate }: CatalogDetailPageProps) {
+export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP Models" }: CatalogDetailPageProps) {
   const { colors, isDark } = useTheme();
   const [selectedNav, setSelectedNav] = useState("catalog");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -147,7 +148,7 @@ export function CatalogDetailPage({ item, onBack, onNavigate }: CatalogDetailPag
         selectedKey={selectedNav}
         onSelect={handleNavSelect}
         width={220}
-        header={<SidebarHeader />}
+        header={<SidebarHeader projectName={projectName} />}
         footer={
           <span style={{ fontSize: 11, color: colors.text.disabled, fontFamily: ff }}>
             Runway v1.5.0
@@ -160,7 +161,7 @@ export function CatalogDetailPage({ item, onBack, onNavigate }: CatalogDetailPag
         {/* GNB */}
         <AppGnb
           breadcrumbs={[
-            { label: "NLP Models", icon: <Icon name="folder_open" size={20} color={colors.icon.secondary} /> },
+            { label: projectName, icon: <Icon name="folder_open" size={20} color={colors.icon.secondary} /> },
             { label: "Catalog", icon: <Icon name="catalog" size={20} color={colors.icon.secondary} />, onClick: onBack },
             { label: item.title },
           ]}

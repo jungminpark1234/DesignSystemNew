@@ -32,14 +32,14 @@ function WorkspaceHeader() {
 }
 
 // ─── Project LNB Header (with folder info) ───
-function ProjectHeader() {
+function ProjectHeader({ projectName = "NLP Models" }: { projectName?: string }) {
   const { colors } = useTheme();
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 16px 12px" }}>
         <div
           style={{
-            width: 32, height: 32, borderRadius: 5.3, backgroundColor: "#dc2626",
+            width: 32, height: 32, borderRadius: 5.3, backgroundColor: "#bf6a40",
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}
         >
@@ -70,7 +70,7 @@ function ProjectHeader() {
             Projects
           </div>
           <div style={{ fontSize: 14, fontWeight: 500, color: colors.text.primary, lineHeight: "16px", fontFamily: "'Pretendard', sans-serif" }}>
-            NLP Models
+            {projectName}
           </div>
         </div>
       </div>
@@ -125,7 +125,7 @@ function LayoutPreview({ sidebar, selectedLabel }: { sidebar: React.ReactNode; s
 }
 
 // ─── Page ───
-export function LnbWorkspacePage() {
+export function LnbWorkspacePage({ projectName = "NLP Models" }: { projectName?: string }) {
   const { colors } = useTheme();
 
   const [wsSelected, setWsSelected] = useState("platform");
@@ -164,7 +164,7 @@ export function LnbWorkspacePage() {
               selectedKey={projSelected}
               onSelect={setProjSelected}
               width={220}
-              header={<ProjectHeader />}
+              header={<ProjectHeader projectName={projectName} />}
               footer={<Footer />}
             />
           }
@@ -199,7 +199,7 @@ export function LnbWorkspacePage() {
                 selectedKey="data-connection"
                 onSelect={() => {}}
                 width={220}
-                header={<ProjectHeader />}
+                header={<ProjectHeader projectName={projectName} />}
                 footer={<Footer />}
               />
             </div>

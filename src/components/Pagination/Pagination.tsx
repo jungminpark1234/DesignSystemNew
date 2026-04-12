@@ -33,14 +33,11 @@ function Ellipsis() {
         justifyContent: "center",
         height: 24,
         padding: "4px",
-        color: colorText.disabled,
-        fontFamily: fontFamily.body,
-        fontSize: 14,
         userSelect: "none",
       }}
       aria-hidden="true"
     >
-      •••
+      <Icon name="more-horizontal" size={16} color={colorText.disabled} />
     </span>
   );
 }
@@ -130,7 +127,7 @@ function ArrowButton({
       onMouseLeave={() => setHovered(false)}
     >
       <Icon
-        name={direction === "left" ? "prev-arrow" : "next-arrow"}
+        name={direction === "left" ? "chevron-left" : "chevron-right"}
         size={16}
         color={disabled ? colorBorder.disabled : colorText.secondary}
       />

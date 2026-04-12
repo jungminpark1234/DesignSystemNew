@@ -24,7 +24,7 @@ export interface IconProps {
  * <Icon name="search" label="Search" />
  */
 export const Icon = React.forwardRef<HTMLSpanElement, IconProps>(
-  ({ name, size = 24, color = "currentColor", className, style, label }, ref) => {
+  ({ name, size = 24, color, className, style, label }, ref) => {
     const svgString = iconSvgMap[name];
 
     if (!svgString) {
@@ -34,19 +34,23 @@ export const Icon = React.forwardRef<HTMLSpanElement, IconProps>(
       return null;
     }
 
-    // Inject width/height/color into raw SVG string
-    const sized = svgString
+    // Inject width/height into raw SVG string
+    let sized = svgString
       .replace(/width="[^"]*"/, `width="${size}"`)
-      .replace(/height="[^"]*"/, `height="${size}"`)
-      // Rewrite literal fill colors (except "none") to currentColor
-      .replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"')
-      .replace(/stroke="(?!none)[^"]*"/g, 'stroke="currentColor"');
+      .replace(/height="[^"]*"/, `height="${size}"`);
+
+    // Only rewrite colors when a color prop is explicitly provided
+    if (color !== undefined) {
+      sized = sized
+        .replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"')
+        .replace(/stroke="(?!none)[^"]*"/g, 'stroke="currentColor"');
+    }
 
     return (
       <span
         ref={ref}
         className={className}
-        style={{ display: "inline-flex", alignItems: "center", color, ...style }}
+        style={{ display: "inline-flex", alignItems: "center", color: color ?? "currentColor", ...style }}
         aria-label={label}
         aria-hidden={label ? undefined : true}
         role={label ? "img" : undefined}

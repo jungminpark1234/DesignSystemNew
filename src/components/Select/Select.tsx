@@ -256,7 +256,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
               {selectedOption ? selectedOption.label : placeholder}
             </span>
             <Icon
-              name="arrow2_down"
+              name="chevron-down"
               size={16}
               color={getChevronColor()}
             />
