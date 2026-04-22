@@ -204,21 +204,21 @@ export function DetailPage({ title, onBack, actions, children }: DetailPageProps
 // Use inside <DetailPage> children.
 // ─────────────────────────────────────────────────────────────────────────────
 interface DetailContentWithSidebarProps {
-  /** Main content (left, flexible width) */
+  /** Main content (left) */
   children: React.ReactNode;
-  /** Sidebar content (right, fixed 480px) */
+  /** Sidebar content (right) */
   sidebar: React.ReactNode;
-  /** Optional sidebar width (default: 480) */
+  /** Optional sidebar width (default: 480) — deprecated, use ratio */
   sidebarWidth?: number;
 }
 
-export function DetailContentWithSidebar({ children, sidebar, sidebarWidth = 480 }: DetailContentWithSidebarProps) {
+export function DetailContentWithSidebar({ children, sidebar }: DetailContentWithSidebarProps) {
   return (
     <div style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ flex: 2, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
         {children}
       </div>
-      <div style={{ width: sidebarWidth, flexShrink: 0, display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
         {sidebar}
       </div>
     </div>

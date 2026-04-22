@@ -395,7 +395,7 @@ Qdrant integrates with LangChain, LlamaIndex, Haystack, Cohere, OpenAI ChatGPT R
 
   airflow: {
     id: "airflow",
-    title: "Airflow (Managed)",
+    title: "Airflow",
     desc: "Data workflow orchestration dashboard for programmatically authoring, scheduling, and monitoring workflows",
     appId: "runway-airflow",
     createdAt: "2025-10-18",
@@ -459,6 +459,93 @@ Want to help build Apache Airflow? Check out our [contributing documentation](ht
 
 More than 500 organizations are using Apache Airflow
 [in the wild](https://github.com/apache/airflow/blob/main/INTHEWILD.md).
+`,
+  },
+
+  postgresql: {
+    id: "postgresql",
+    title: "PostgreSQL (CNPG)",
+    desc: "CloudNativePG 기반 관계형 데이터베이스. 프로젝트 내에서 즉시 배포하여 AI/ML 파이프라인에서 RDB를 활용할 수 있습니다.",
+    appId: "runway-cnpg",
+    createdAt: "2026-04-15",
+    readme: `# PostgreSQL (CNPG)
+
+**CloudNativePG** — Kubernetes 네이티브 PostgreSQL 오퍼레이터
+
+[Docs](https://cloudnative-pg.io/documentation/) | [GitHub](https://github.com/cloudnative-pg/cloudnative-pg)
+
+## 개요
+
+CloudNativePG(CNPG)는 Kubernetes 환경에서 PostgreSQL 클러스터를 관리하기 위한 오퍼레이터입니다. Runway 플랫폼 앱으로 제공되어, 별도의 외부 DB 구성 없이 프로젝트 내에서 즉시 관계형 데이터베이스를 활용할 수 있습니다.
+
+## 주요 특징
+
+- **프로젝트 단위 격리**: 동일 프로젝트 멤버만 접근 가능, 타 프로젝트 접근 차단
+- **Kubernetes 네이티브**: Helm 기반 배포, 자동 복구, 리소스 관리
+- **즉시 사용 가능**: 배포 후 기본 계정으로 바로 연결
+- **복수 인스턴스 지원**: 동일 프로젝트 내 여러 인스턴스 독립 운영
+
+## 기본 계정 정보
+
+| 항목 | 값 |
+|------|-----|
+| Database | postgres |
+| User | postgres |
+| Password | 없음 (필요 시 접속 후 직접 설정) |
+
+## 연결 방법
+
+배포 완료 후 인스턴스 상세 페이지에서 연결 정보(host, port)를 확인할 수 있습니다.
+
+\`\`\`python
+import psycopg2
+
+conn = psycopg2.connect(
+    host="<인스턴스-host>",
+    port=5432,
+    dbname="postgres",
+    user="postgres",
+)
+cursor = conn.cursor()
+cursor.execute("SELECT version();")
+print(cursor.fetchone())
+\`\`\`
+
+### SQLAlchemy 연결
+
+\`\`\`python
+from sqlalchemy import create_engine
+
+engine = create_engine(
+    "postgresql://postgres@<인스턴스-host>:5432/postgres"
+)
+
+with engine.connect() as conn:
+    result = conn.execute("SELECT 1")
+    print(result.fetchone())
+\`\`\`
+
+## 리소스 기본값
+
+| 항목 | 기본값 |
+|------|--------|
+| CPU | 2 Cores |
+| Memory | 4 GiB |
+| Storage | 10 Gi |
+
+## 지원 버전
+
+- PostgreSQL 16.x (CNPG Operator 1.22)
+
+## 주의사항
+
+- 기본 계정은 패스워드 없이 제공됩니다. 필요 시 접속 후 직접 설정해주세요.
+- 인스턴스 삭제 시 저장된 데이터는 복구할 수 없습니다.
+- 커스텀 Helm 설정은 허용된 항목(스토리지, 리소스)만 변경 가능합니다.
+
+## License
+
+[Apache 2.0](https://github.com/cloudnative-pg/cloudnative-pg/blob/main/LICENSE)
 `,
   },
 };

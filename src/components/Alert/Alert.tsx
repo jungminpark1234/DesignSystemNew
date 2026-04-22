@@ -48,7 +48,7 @@ const STATUS_TOKENS: Record<AlertStatus, StatusToken> = {
   error: {
     subtle:      { bg: colorBg.dangerSubtle, text: colorText.primary, iconColor: colorIcon.danger },
     filled:      { bg: colorBg.danger, text: colorText.inverse, iconColor: colorIcon.inverse },
-    outlined:    { bg: colorBg.primary, border: colorBorder.danger, text: colorText.primary, iconColor: colorIcon.danger },
+    outlined:    { bg: colorBg.dangerSubtle, border: colorBorder.danger, text: colorText.primary, iconColor: colorIcon.danger },
     transparent: { bg: "transparent", text: colorText.primary, iconColor: colorIcon.danger },
   },
 };

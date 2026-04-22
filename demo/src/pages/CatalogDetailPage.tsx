@@ -8,6 +8,7 @@ import { AppGnb } from "../components/AppGnb";
 import { DetailPage, DetailContentWithSidebar, PageTitle } from "../components/PageLayout";
 import { CatalogItemData } from "../data/catalogReadme";
 import { CreateAppDrawer } from "../components/CreateAppDrawer";
+import { AirflowDeployDrawer } from "./AirflowDetail";
 import Prism from "prismjs";
 import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
@@ -22,6 +23,7 @@ import logoLangflow from "@ds/icons/catalog/langflow.svg";
 import logoMilvus from "@ds/icons/catalog/milvus.svg";
 import logoQdrant from "@ds/icons/catalog/Qdrant.svg";
 import logoAirflow from "@ds/icons/catalog/airflow.svg";
+import logoPostgresql from "@ds/icons/platform/postgre.svg";
 
 const LOGO_MAP: Record<string, string> = {
   chroma: logoChroma,
@@ -31,6 +33,7 @@ const LOGO_MAP: Record<string, string> = {
   milvus: logoMilvus,
   qdrant: logoQdrant,
   airflow: logoAirflow,
+  postgresql: logoPostgresql,
 };
 
 interface CatalogDetailPageProps {
@@ -131,6 +134,9 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
   const { colors, isDark } = useTheme();
   const [selectedNav, setSelectedNav] = useState("catalog");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pgDrawerOpen, setPgDrawerOpen] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [createdPg, setCreatedPg] = useState<{ id: string; name: string } | null>(null);
 
   const handleNavSelect = (key: string) => {
     setSelectedNav(key);
@@ -169,7 +175,6 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
 
         <DetailPage
           title={<PageTitle>{item.title}</PageTitle>}
-          onBack={onBack}
           actions={
             <>
               <CreateButton onClick={() => setDrawerOpen(true)} />
@@ -295,12 +300,78 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
         </DetailPage>
       </div>  {/* end main */}
 
-      {/* Create Application Drawer */}
-      <CreateAppDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        catalogItem={item}
-      />
+      {/* Create Application Drawer — 앱 유형별 전용 배포 폼 */}
+      {item.id === "airflow" ? (
+        <>
+          <AirflowDeployDrawer
+            open={drawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            existingNames={[]}
+            availableCnpg={[]}
+            autoSelectPg={createdPg}
+            onRequestCreatePostgres={() => {
+              setDrawerOpen(false);
+              setTimeout(() => setPgDrawerOpen(true), 200);
+            }}
+          />
+          {/* PostgreSQL 생성 Drawer */}
+          <CreateAppDrawer
+            open={pgDrawerOpen}
+            onClose={() => setPgDrawerOpen(false)}
+            onCreate={({ name, id }) => {
+              // PG 생성 성공 시 — 실제 입력한 이름/ID로 저장
+              setCreatedPg({ id: id || `pg-${Date.now()}`, name: name });
+              setPgDrawerOpen(false);
+              setTimeout(() => setConfirmDialogOpen(true), 200);
+            }}
+            catalogItem={{ id: "postgresql", title: "PostgreSQL (CNPG)", desc: "", appId: "", createdAt: "", readme: "" }}
+          />
+          {/* 이어서 Airflow 생성 Dialog */}
+          {confirmDialogOpen && (
+            <div style={{
+              position: "fixed", inset: 0, zIndex: 500, display: "flex",
+              alignItems: "center", justifyContent: "center",
+              backgroundColor: "rgba(0,0,0,0.4)",
+            }} onClick={() => setConfirmDialogOpen(false)}>
+              <div onClick={(e) => e.stopPropagation()} style={{
+                backgroundColor: colors.bg.primary, borderRadius: 12, padding: 24,
+                width: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
+                display: "flex", flexDirection: "column", gap: 16,
+              }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>
+                  PostgreSQL이 생성되었습니다
+                </div>
+                <div style={{ fontSize: 14, color: colors.text.secondary, fontFamily: ff, lineHeight: "22px" }}>
+                  이어서 Airflow 애플리케이션을 생성할까요?<br/>
+                  이전에 입력한 내용이 유지됩니다.
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+                  <button onClick={() => setConfirmDialogOpen(false)} style={{
+                    height: 36, padding: "8px 14px", borderRadius: 6, cursor: "pointer",
+                    border: `1px solid ${colors.border.interactive.secondary}`,
+                    backgroundColor: colors.bg.interactive.secondary, color: colors.text.interactive.secondary,
+                    fontFamily: ff, fontSize: 14, fontWeight: 500,
+                  }}>취소</button>
+                  <button onClick={() => {
+                    setConfirmDialogOpen(false);
+                    setTimeout(() => setDrawerOpen(true), 200);
+                  }} style={{
+                    height: 36, padding: "8px 14px", borderRadius: 6, border: "none", cursor: "pointer",
+                    backgroundColor: colors.bg.interactive.runwayPrimary, color: "#fff",
+                    fontFamily: ff, fontSize: 14, fontWeight: 500,
+                  }}>이어서 생성</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <CreateAppDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          catalogItem={item}
+        />
+      )}
     </div>
   );
 }

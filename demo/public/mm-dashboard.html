@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MM 배정 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Segoe UI', sans-serif; }
+      .heatmap-cell { transition: transform 0.1s ease; cursor: pointer; }
+      .heatmap-cell:hover { transform: scale(1.15); outline: 2px solid #111; z-index: 10; position: relative; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+      .modal-backdrop { background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); }
+    </style>
+  </head>
+  <body class="bg-zinc-50 text-zinc-900">
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const { useState, useMemo } = React;
+      const {
+        BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+        Tooltip, Legend, ResponsiveContainer
+      } = Recharts;
+
+      const INITIAL_TEAM_NAMES = ['Platform', 'Product', 'Data', 'Design', 'Infra'];
+      const TEAM_COLOR_PALETTE = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#64748b', '#8b5cf6', '#f43f5e', '#06b6d4', '#a16207', '#0ea5e9'];
+      const PROJECTS = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta'];
+      const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+      function seeded(seed) {
+        let x = seed;
+        return () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+      }
+
+      function generateInitialMembers(teamNames) {
+        const rand = seeded(42);
+        const members = [];
+        teamNames.forEach((team) => {
+          for (let i = 1; i <= 10; i++) {
+            const memberProjects = [];
+            const shuffled = [...PROJECTS].sort(() => rand() - 0.5);
+            for (let p = 0; p < 3; p++) {
+              const monthly = [];
+              for (let m = 0; m < 12; m++) {
+                monthly.push(Math.round(rand() * 60) / 100);
+              }
+              memberProjects.push({ project: shuffled[p], monthly });
+            }
+            members.push({
+              id: `${team}-${i}`,
+              name: `${team.slice(0,2)}.M${i.toString().padStart(2,'0')}`,
+              team,
+              projects: memberProjects,
+            });
+          }
+        });
+        return members;
+      }
+
+      const memberMonthTotal = (m, monthIdx) =>
+        m.projects.reduce((s, p) => s + p.monthly[monthIdx], 0);
+
+      function cellColor(mm) {
+        if (mm === 0) return '#f4f4f5';
+        if (mm > 1.0) return '#dc2626';
+        if (mm > 0.9) return '#ea580c';
+        if (mm > 0.7) return '#f59e0b';
+        if (mm > 0.5) return '#84cc16';
+        if (mm > 0.3) return '#22d3ee';
+        return '#bae6fd';
+      }
+
+      const projectColor = (name) => {
+        const idx = PROJECTS.indexOf(name);
+        return idx >= 0 ? `hsl(${idx*45}, 65%, 55%)` : '#94a3b8';
+      };
+
+      function App() {
+        const [teams, setTeams] = useState(() =>
+          INITIAL_TEAM_NAMES.map((name, i) => ({ name, color: TEAM_COLOR_PALETTE[i] }))
+        );
+        const [members, setMembers] = useState(() => generateInitialMembers(INITIAL_TEAM_NAMES));
+
+        const [selectedMonth, setSelectedMonth] = useState(3);
+        const [selectedCell, setSelectedCell] = useState(null);
+        const [bottomTab, setBottomTab] = useState('project');
+        const [teamFilter, setTeamFilter] = useState('ALL');
+        const [modal, setModal] = useState(null); // null | { type: 'team' } | { type: 'member', team }
+
+        // derive
+        const teamColors = useMemo(
+          () => Object.fromEntries(teams.map(t => [t.name, t.color])),
+          [teams]
+        );
+        const teamNames = useMemo(() => teams.map(t => t.name), [teams]);
+
+        // initial selected cell
+        useMemo(() => {
+          if (!selectedCell && members.length > 0) {
+            setSelectedCell({ member: members[0], monthIdx: 3 });
+          }
+        }, [members]);
+
+        const filteredMembers = useMemo(
+          () => teamFilter === 'ALL' ? members : members.filter(m => m.team === teamFilter),
+          [teamFilter, members]
+        );
+
+        const kpis = useMemo(() => {
+          if (members.length === 0) return { avg: 0, over: 0, under: 0 };
+          const totals = members.map(m => memberMonthTotal(m, selectedMonth));
+          const avg = totals.reduce((s, v) => s + v, 0) / totals.length;
+          const over = totals.filter(v => v > 1.0).length;
+          const under = totals.filter(v => v < 0.5).length;
+          return { avg, over, under };
+        }, [selectedMonth, members]);
+
+        const projectMonthly = useMemo(() => {
+          const map = {};
+          PROJECTS.forEach(p => { map[p] = Array(12).fill(0); });
+          members.forEach(m => {
+            m.projects.forEach(p => {
+              if (!map[p.project]) map[p.project] = Array(12).fill(0);
+              p.monthly.forEach((v, i) => { map[p.project][i] += v; });
+            });
+          });
+          return MONTHS.map((mo, i) => {
+            const row = { month: mo };
+            Object.keys(map).forEach(p => { row[p] = +map[p][i].toFixed(1); });
+            return row;
+          });
+        }, [members]);
+
+        const teamTrend = useMemo(() => {
+          return MONTHS.map((mo, i) => {
+            const row = { month: mo };
+            teamNames.forEach(t => {
+              const tm = members.filter(m => m.team === t);
+              const avg = tm.length ? tm.reduce((s, m) => s + memberMonthTotal(m, i), 0) / tm.length : 0;
+              row[t] = +avg.toFixed(2);
+            });
+            return row;
+          });
+        }, [teamNames, members]);
+
+        const alerts = useMemo(() => {
+          return members
+            .map(m => ({ m, mm: memberMonthTotal(m, selectedMonth) }))
+            .filter(x => x.mm > 1.0 || x.mm < 0.5)
+            .sort((a, b) => b.mm - a.mm);
+        }, [selectedMonth, members]);
+
+        // handlers
+        const handleAddTeam = ({ name }) => {
+          if (!name || teams.some(t => t.name === name)) return;
+          const color = TEAM_COLOR_PALETTE[teams.length % TEAM_COLOR_PALETTE.length];
+          setTeams(prev => [...prev, { name, color }]);
+          setModal(null);
+        };
+
+        const handleAddMember = ({ team, name, selectedProjects }) => {
+          if (!team || !name || selectedProjects.length !== 3) return;
+          const newMember = {
+            id: `${team}-${name}-${Date.now()}`,
+            name,
+            team,
+            projects: selectedProjects.map(p => ({ project: p, monthly: Array(12).fill(0) })),
+          };
+          setMembers(prev => [...prev, newMember]);
+          setSelectedCell({ member: newMember, monthIdx: selectedMonth });
+          setModal(null);
+        };
+
+        const handleSaveMemberMM = ({ memberId, projects }) => {
+          setMembers(prev => prev.map(m =>
+            m.id === memberId ? { ...m, projects } : m
+          ));
+          setSelectedCell(prev => prev && prev.member.id === memberId
+            ? { ...prev, member: { ...prev.member, projects } }
+            : prev
+          );
+          setModal(null);
+        };
+
+        return (
+          <div className="min-h-screen">
+            <header className="bg-white border-b border-zinc-200 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">MM 배정 대시보드</h1>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  {teams.length}팀 · {members.length}명 · 월별 프로젝트 M/M 현황
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  value={teamFilter}
+                  onChange={e => setTeamFilter(e.target.value)}
+                  className="text-sm border border-zinc-300 rounded-md px-3 py-1.5 bg-white"
+                >
+                  <option value="ALL">전체 팀</option>
+                  {teamNames.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select
+                  value={selectedMonth}
+                  onChange={e => setSelectedMonth(+e.target.value)}
+                  className="text-sm border border-zinc-300 rounded-md px-3 py-1.5 bg-white"
+                >
+                  {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+                <button
+                  onClick={() => setModal({ type: 'team' })}
+                  className="text-sm px-3 py-1.5 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 font-medium"
+                >
+                  + 팀 추가
+                </button>
+                <button
+                  onClick={() => setModal({ type: 'member', team: teamNames[0] })}
+                  className="text-sm px-3 py-1.5 bg-white border border-zinc-300 rounded-md hover:bg-zinc-50 font-medium"
+                  disabled={teams.length === 0}
+                >
+                  + 멤버 추가
+                </button>
+                <button className="text-sm px-3 py-1.5 bg-zinc-900 text-white rounded-md hover:bg-zinc-700">
+                  Excel 내보내기
+                </button>
+              </div>
+            </header>
+
+            <div className="px-6 pt-5 pb-3 grid grid-cols-4 gap-3">
+              <KpiCard label="총 인원" value={members.length.toString()} sub={`${teams.length}팀`} />
+              <KpiCard
+                label={`${MONTHS[selectedMonth]} 평균 가동률`}
+                value={kpis.avg.toFixed(2)}
+                sub="MM / 인"
+                tone={kpis.avg > 1 ? 'red' : kpis.avg > 0.8 ? 'amber' : 'green'}
+              />
+              <KpiCard label="과다 배정" value={kpis.over.toString()} sub="MM > 1.0" tone="red" />
+              <KpiCard label="저활용" value={kpis.under.toString()} sub="MM < 0.5" tone="blue" />
+            </div>
+
+            <div className="px-6 pb-6 grid grid-cols-12 gap-4" style={{ minHeight: '620px' }}>
+              <aside className="col-span-2 bg-white border border-zinc-200 rounded-lg overflow-hidden flex flex-col">
+                <div className="px-3 py-2 border-b border-zinc-100 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">팀 · 멤버</span>
+                  <button
+                    onClick={() => setModal({ type: 'team' })}
+                    className="text-xs text-zinc-600 hover:text-zinc-900 font-medium"
+                    title="팀 추가"
+                  >
+                    + 팀
+                  </button>
+                </div>
+                <div className="overflow-y-auto flex-1 text-sm">
+                  {teams.map(team => (
+                    <TeamGroup
+                      key={team.name}
+                      team={team.name}
+                      color={team.color}
+                      members={members.filter(m => m.team === team.name)}
+                      monthIdx={selectedMonth}
+                      selectedId={selectedCell?.member?.id}
+                      onSelect={m => setSelectedCell({ member: m, monthIdx: selectedMonth })}
+                      onEditMember={m => setModal({ type: 'edit', memberId: m.id })}
+                      onAddMember={() => setModal({ type: 'member', team: team.name })}
+                    />
+                  ))}
+                  {teams.length === 0 && (
+                    <div className="p-4 text-xs text-zinc-400 text-center">
+                      팀이 없습니다.<br/>우측 상단에서 팀을 추가하세요.
+                    </div>
+                  )}
+                </div>
+              </aside>
+
+              <section className="col-span-7 bg-white border border-zinc-200 rounded-lg flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-100">
+                  <div>
+                    <h2 className="text-sm font-semibold">월별 배정 히트맵</h2>
+                    <p className="text-xs text-zinc-500">셀 클릭 시 프로젝트별 상세가 우측에 표시됩니다</p>
+                  </div>
+                  <Legend2 />
+                </div>
+                <div className="overflow-auto flex-1">
+                  {filteredMembers.length > 0 ? (
+                    <Heatmap
+                      members={filteredMembers}
+                      selectedCell={selectedCell}
+                      onCellClick={(m, i) => { setSelectedCell({ member: m, monthIdx: i }); setSelectedMonth(i); }}
+                      teamColors={teamColors}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-zinc-400 p-8">
+                      멤버가 없습니다. 좌측 사이드바에서 팀과 멤버를 추가해주세요.
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <aside className="col-span-3 bg-white border border-zinc-200 rounded-lg flex flex-col">
+                <div className="px-4 py-2.5 border-b border-zinc-100">
+                  <h2 className="text-sm font-semibold">배정 상세</h2>
+                  {selectedCell && (
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      <span className="font-medium" style={{ color: teamColors[selectedCell.member.team] }}>
+                        {selectedCell.member.team}
+                      </span>
+                      {' · '}{selectedCell.member.name} · {MONTHS[selectedCell.monthIdx]}
+                    </p>
+                  )}
+                </div>
+                {selectedCell && <DetailPanel cell={selectedCell} />}
+              </aside>
+            </div>
+
+            <div className="px-6 pb-8">
+              <div className="bg-white border border-zinc-200 rounded-lg">
+                <div className="flex border-b border-zinc-100 px-2">
+                  {[
+                    ['project','프로젝트별 집계'],
+                    ['trend','팀별 가동률 추이'],
+                    ['alert',`배정 경고 (${alerts.length})`],
+                  ].map(([k, label]) => (
+                    <button
+                      key={k}
+                      onClick={() => setBottomTab(k)}
+                      className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${
+                        bottomTab === k ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="p-4" style={{ height: 320 }}>
+                  {bottomTab === 'project' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={projectMonthly}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        {PROJECTS.map(p => (
+                          <Bar key={p} dataKey={p} stackId="a" fill={projectColor(p)} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  {bottomTab === 'trend' && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={teamTrend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} domain={[0, 1.5]} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        {teamNames.map(t => (
+                          <Line key={t} type="monotone" dataKey={t} stroke={teamColors[t]} strokeWidth={2} dot={{ r: 3 }} />
+                        ))}
+                        <Line type="monotone" dataKey={() => 1.0} stroke="#dc2626" strokeDasharray="4 4" dot={false} name="경고선 (1.0)" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                  {bottomTab === 'alert' && (
+                    <div className="overflow-auto h-full">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-zinc-50 text-xs text-zinc-600 uppercase">
+                          <tr>
+                            <th className="text-left px-3 py-2">팀</th>
+                            <th className="text-left px-3 py-2">멤버</th>
+                            <th className="text-right px-3 py-2">{MONTHS[selectedMonth]} MM</th>
+                            <th className="text-left px-3 py-2">프로젝트</th>
+                            <th className="text-left px-3 py-2 w-24">상태</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alerts.map(({m, mm}) => (
+                            <tr key={m.id} className="border-t border-zinc-100 hover:bg-zinc-50">
+                              <td className="px-3 py-2">
+                                <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: teamColors[m.team] }}></span>
+                                {m.team}
+                              </td>
+                              <td className="px-3 py-2 font-medium">{m.name}</td>
+                              <td className="px-3 py-2 text-right font-mono">{mm.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-xs text-zinc-500">
+                                {m.projects.map(p => `${p.project}(${p.monthly[selectedMonth].toFixed(1)})`).join(' · ')}
+                              </td>
+                              <td className="px-3 py-2">
+                                {mm > 1.0
+                                  ? <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">과다 배정</span>
+                                  : <span className="px-2 py-0.5 text-xs rounded-full bg-sky-100 text-sky-700">저활용</span>}
+                              </td>
+                            </tr>
+                          ))}
+                          {alerts.length === 0 && (
+                            <tr><td colSpan="5" className="text-center text-zinc-400 py-8">경고 대상 없음</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {modal?.type === 'team' && (
+              <TeamModal
+                existingNames={teamNames}
+                nextColor={TEAM_COLOR_PALETTE[teams.length % TEAM_COLOR_PALETTE.length]}
+                onCancel={() => setModal(null)}
+                onSubmit={handleAddTeam}
+              />
+            )}
+            {modal?.type === 'member' && (
+              <MemberModal
+                teams={teams}
+                defaultTeam={modal.team}
+                onCancel={() => setModal(null)}
+                onSubmit={handleAddMember}
+              />
+            )}
+            {modal?.type === 'edit' && (() => {
+              const member = members.find(m => m.id === modal.memberId);
+              if (!member) return null;
+              return (
+                <MemberEditModal
+                  member={member}
+                  teamColor={teamColors[member.team]}
+                  onCancel={() => setModal(null)}
+                  onSave={handleSaveMemberMM}
+                />
+              );
+            })()}
+          </div>
+        );
+      }
+
+      function KpiCard({ label, value, sub, tone = 'default' }) {
+        const toneCls = {
+          default: 'text-zinc-900', red: 'text-red-600',
+          amber: 'text-amber-600', green: 'text-emerald-600', blue: 'text-sky-600',
+        }[tone];
+        return (
+          <div className="bg-white border border-zinc-200 rounded-lg p-4">
+            <div className="text-xs text-zinc-500 font-medium">{label}</div>
+            <div className={`text-2xl font-bold mt-1 ${toneCls}`}>{value}</div>
+            <div className="text-xs text-zinc-400 mt-0.5">{sub}</div>
+          </div>
+        );
+      }
+
+      function TeamGroup({ team, color, members, monthIdx, selectedId, onSelect, onEditMember, onAddMember }) {
+        const [open, setOpen] = useState(true);
+        const teamAvg = members.length
+          ? members.reduce((s, m) => s + memberMonthTotal(m, monthIdx), 0) / members.length
+          : 0;
+        return (
+          <div className="border-b border-zinc-100">
+            <button
+              onClick={() => setOpen(!open)}
+              className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-50"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ background: color }}></span>
+                <span className="font-semibold text-xs uppercase tracking-wide">{team}</span>
+                <span className="text-[10px] text-zinc-400">({members.length})</span>
+              </div>
+              <span className="text-xs text-zinc-500 font-mono">{teamAvg.toFixed(2)}</span>
+            </button>
+            {open && (
+              <div className="pb-1">
+                {members.map(m => {
+                  const mm = memberMonthTotal(m, monthIdx);
+                  const isSel = selectedId === m.id;
+                  return (
+                    <div
+                      key={m.id}
+                      className={`w-full flex items-center justify-between pl-3 pr-2 py-1 text-xs group ${isSel ? 'bg-zinc-100' : 'hover:bg-zinc-50'}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => { onSelect(m); onEditMember(m); }}
+                        className="text-zinc-700 truncate flex-1 text-left hover:text-zinc-900 hover:underline underline-offset-2"
+                        title="클릭하여 월별 MM 편집"
+                      >
+                        {m.name}
+                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="w-10 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(mm, 1.5) / 1.5 * 100}%`, background: cellColor(mm) }}></div>
+                        </div>
+                        <span className="font-mono text-zinc-500 w-8 text-right">{mm.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={onAddMember}
+                  className="w-full text-left px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 font-medium"
+                >
+                  + 멤버 추가
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      function Heatmap({ members, selectedCell, onCellClick, teamColors }) {
+        return (
+          <table className="w-full text-xs border-separate" style={{ borderSpacing: 2 }}>
+            <thead className="sticky top-0 bg-white z-10">
+              <tr>
+                <th className="sticky left-0 bg-white text-left px-2 py-1.5 font-medium text-zinc-500 w-32">멤버</th>
+                {MONTHS.map(m => (
+                  <th key={m} className="px-1 py-1.5 font-medium text-zinc-500 text-center">{m}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((m, idx) => {
+                const prevTeam = idx > 0 ? members[idx-1].team : null;
+                const showTeamDivider = prevTeam && prevTeam !== m.team;
+                return (
+                  <tr key={m.id} className={showTeamDivider ? 'border-t-2' : ''}>
+                    <td className="sticky left-0 bg-white px-2 py-1 text-zinc-700 whitespace-nowrap">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ background: teamColors[m.team] }}></span>
+                      {m.name}
+                    </td>
+                    {Array.from({ length: 12 }).map((_, i) => {
+                      const mm = memberMonthTotal(m, i);
+                      const selected = selectedCell && selectedCell.member.id === m.id && selectedCell.monthIdx === i;
+                      return (
+                        <td key={i} className="p-0 text-center">
+                          <div
+                            className="heatmap-cell rounded mx-auto flex items-center justify-center font-mono"
+                            onClick={() => onCellClick(m, i)}
+                            style={{
+                              background: cellColor(mm),
+                              width: 40, height: 24,
+                              color: mm > 0.7 ? 'white' : '#3f3f46',
+                              fontSize: 10,
+                              outline: selected ? '2px solid #111' : 'none',
+                              outlineOffset: selected ? 1 : 0,
+                            }}
+                            title={`${m.name} · ${MONTHS[i]} · ${mm.toFixed(2)} MM`}
+                          >
+                            {mm > 0 ? mm.toFixed(1) : ''}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        );
+      }
+
+      function Legend2() {
+        const stops = [
+          ['0', '#f4f4f5'], ['0.3', '#bae6fd'], ['0.5', '#22d3ee'],
+          ['0.7', '#84cc16'], ['0.9', '#f59e0b'], ['1.0+', '#dc2626'],
+        ];
+        return (
+          <div className="flex items-center gap-1 text-xs text-zinc-500">
+            <span>낮음</span>
+            {stops.map(([l, c]) => (
+              <div key={l} className="flex flex-col items-center">
+                <div style={{ background: c, width: 18, height: 10 }} className="rounded-sm"></div>
+                <span className="text-[10px] mt-0.5">{l}</span>
+              </div>
+            ))}
+            <span>높음</span>
+          </div>
+        );
+      }
+
+      function DetailPanel({ cell }) {
+        const { member, monthIdx } = cell;
+        const total = memberMonthTotal(member, monthIdx);
+        const overAlloc = total > 1.0;
+
+        return (
+          <div className="p-4 flex flex-col gap-4 overflow-auto flex-1">
+            <div className={`rounded-lg p-3 border ${overAlloc ? 'bg-red-50 border-red-200' : 'bg-zinc-50 border-zinc-200'}`}>
+              <div className="text-xs text-zinc-500 font-medium">{MONTHS[monthIdx]} 총 배정 MM</div>
+              <div className={`text-3xl font-bold mt-1 ${overAlloc ? 'text-red-600' : 'text-zinc-900'}`}>
+                {total.toFixed(2)}
+              </div>
+              {overAlloc && <div className="text-xs text-red-600 mt-1">⚠ 1.0 초과 — 리밸런싱 필요</div>}
+            </div>
+
+            <div>
+              <div className="text-xs font-medium text-zinc-600 mb-2">프로젝트별 비중</div>
+              <div className="flex h-6 rounded-md overflow-hidden bg-zinc-100">
+                {member.projects.map(p => {
+                  const mm = p.monthly[monthIdx];
+                  const pct = total > 0 ? (mm / Math.max(total, 1.0)) * 100 : 0;
+                  if (pct === 0) return null;
+                  return (
+                    <div
+                      key={p.project}
+                      className="flex items-center justify-center text-[10px] text-white font-medium"
+                      style={{ width: `${pct}%`, background: projectColor(p.project) }}
+                      title={`${p.project}: ${mm.toFixed(2)}`}
+                    >
+                      {pct > 15 && p.project}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-medium text-zinc-600 mb-2">참여 프로젝트 ({member.projects.length}개)</div>
+              <div className="space-y-2">
+                {member.projects.map(p => {
+                  const mm = p.monthly[monthIdx];
+                  return (
+                    <div key={p.project} className="border border-zinc-200 rounded-md p-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-sm" style={{ background: projectColor(p.project) }}></div>
+                          <span className="font-medium text-sm">{p.project}</span>
+                        </div>
+                        <span className="font-mono text-sm">{mm.toFixed(2)} MM</span>
+                      </div>
+                      <div className="flex items-end gap-px mt-2 h-6">
+                        {p.monthly.map((v, mi) => (
+                          <div
+                            key={mi}
+                            className="flex-1 rounded-sm"
+                            style={{
+                              height: `${(v / 0.6) * 100}%`,
+                              minHeight: 2,
+                              background: mi === monthIdx ? '#111' : '#d4d4d8'
+                            }}
+                            title={`${MONTHS[mi]}: ${v.toFixed(2)}`}
+                          ></div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function ModalShell({ title, onCancel, children, onSubmit, submitLabel = '추가', submitDisabled, size = 'md' }) {
+        const maxW = { md: 'max-w-md', lg: 'max-w-2xl', xl: 'max-w-5xl' }[size] || 'max-w-md';
+        return (
+          <div className="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4" onClick={onCancel}>
+            <form
+              onClick={e => e.stopPropagation()}
+              onSubmit={e => { e.preventDefault(); onSubmit(); }}
+              className={`bg-white rounded-xl shadow-xl w-full ${maxW} overflow-hidden max-h-[90vh] flex flex-col`}
+            >
+              <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+                <h3 className="text-base font-semibold">{title}</h3>
+                <button type="button" onClick={onCancel} className="text-zinc-400 hover:text-zinc-700 text-lg leading-none">✕</button>
+              </div>
+              <div className="p-5 overflow-auto flex-1">{children}</div>
+              <div className="px-5 py-3 bg-zinc-50 border-t border-zinc-100 flex items-center justify-end gap-2">
+                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm border border-zinc-300 rounded-md bg-white hover:bg-zinc-50">취소</button>
+                <button
+                  type="submit"
+                  disabled={submitDisabled}
+                  className="px-3 py-1.5 text-sm bg-zinc-900 text-white rounded-md hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed"
+                >
+                  {submitLabel}
+                </button>
+              </div>
+            </form>
+          </div>
+        );
+      }
+
+      function TeamModal({ existingNames, nextColor, onCancel, onSubmit }) {
+        const [name, setName] = useState('');
+        const duplicate = existingNames.includes(name.trim());
+        const valid = name.trim().length > 0 && !duplicate;
+        return (
+          <ModalShell
+            title="팀 추가"
+            onCancel={onCancel}
+            onSubmit={() => valid && onSubmit({ name: name.trim() })}
+            submitDisabled={!valid}
+          >
+            <label className="block">
+              <span className="block text-sm font-medium text-zinc-700 mb-1.5">팀 이름</span>
+              <input
+                autoFocus
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="예: Marketing"
+                className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              />
+              {duplicate && <p className="text-xs text-red-600 mt-1">이미 존재하는 팀명입니다.</p>}
+            </label>
+            <div className="mt-4">
+              <span className="block text-sm font-medium text-zinc-700 mb-1.5">팀 색상</span>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full border border-zinc-200" style={{ background: nextColor }}></span>
+                <span className="text-xs text-zinc-500 font-mono">{nextColor} (자동 배정)</span>
+              </div>
+            </div>
+          </ModalShell>
+        );
+      }
+
+      function MemberModal({ teams, defaultTeam, onCancel, onSubmit }) {
+        const [team, setTeam] = useState(defaultTeam || teams[0]?.name);
+        const [name, setName] = useState('');
+        const [selectedProjects, setSelectedProjects] = useState([PROJECTS[0], PROJECTS[1], PROJECTS[2]]);
+
+        const setProjectAt = (idx, value) => {
+          setSelectedProjects(prev => {
+            const next = [...prev];
+            next[idx] = value;
+            return next;
+          });
+        };
+
+        const hasDuplicate = new Set(selectedProjects).size !== selectedProjects.length;
+        const valid = team && name.trim().length > 0 && !hasDuplicate;
+
+        return (
+          <ModalShell
+            title="멤버 추가"
+            onCancel={onCancel}
+            onSubmit={() => valid && onSubmit({ team, name: name.trim(), selectedProjects })}
+            submitDisabled={!valid}
+          >
+            <div className="space-y-4">
+              <label className="block">
+                <span className="block text-sm font-medium text-zinc-700 mb-1.5">소속 팀</span>
+                <select
+                  value={team}
+                  onChange={e => setTeam(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm bg-white"
+                >
+                  {teams.map(t => (
+                    <option key={t.name} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="block text-sm font-medium text-zinc-700 mb-1.5">멤버 이름</span>
+                <input
+                  autoFocus
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="예: 김철수 또는 Pl.M11"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                />
+              </label>
+
+              <div>
+                <span className="block text-sm font-medium text-zinc-700 mb-1.5">참여 프로젝트 (3개)</span>
+                <div className="space-y-2">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 w-12">#{i + 1}</span>
+                      <select
+                        value={selectedProjects[i]}
+                        onChange={e => setProjectAt(i, e.target.value)}
+                        className="flex-1 px-3 py-1.5 border border-zinc-300 rounded-md text-sm bg-white"
+                      >
+                        {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <span className="w-3 h-3 rounded-sm" style={{ background: projectColor(selectedProjects[i]) }}></span>
+                    </div>
+                  ))}
+                </div>
+                {hasDuplicate && <p className="text-xs text-red-600 mt-1.5">중복된 프로젝트가 있습니다.</p>}
+                <p className="text-xs text-zinc-400 mt-1.5">월별 MM은 생성 후 배정 상세에서 편집하세요 (초기값: 0).</p>
+              </div>
+            </div>
+          </ModalShell>
+        );
+      }
+
+      function MemberEditModal({ member, teamColor, onCancel, onSave }) {
+        const [projects, setProjects] = useState(() =>
+          member.projects.map(p => ({ project: p.project, monthly: [...p.monthly] }))
+        );
+
+        const updateCell = (projectIdx, monthIdx, value) => {
+          const clamped = Math.max(0, Math.min(2, +value || 0));
+          setProjects(prev => prev.map((p, i) =>
+            i === projectIdx
+              ? { ...p, monthly: p.monthly.map((v, j) => j === monthIdx ? clamped : v) }
+              : p
+          ));
+        };
+
+        const changeProject = (projectIdx, newName) => {
+          setProjects(prev => prev.map((p, i) =>
+            i === projectIdx ? { ...p, project: newName } : p
+          ));
+        };
+
+        const monthTotal = (monthIdx) =>
+          projects.reduce((s, p) => s + (p.monthly[monthIdx] || 0), 0);
+        const projectTotal = (projectIdx) =>
+          projects[projectIdx].monthly.reduce((s, v) => s + v, 0);
+
+        const fillProject = (projectIdx, value) => {
+          const clamped = Math.max(0, Math.min(2, +value || 0));
+          setProjects(prev => prev.map((p, i) =>
+            i === projectIdx ? { ...p, monthly: Array(12).fill(clamped) } : p
+          ));
+        };
+
+        const dupProjects = new Set(projects.map(p => p.project)).size !== projects.length;
+        const overMonths = Array.from({ length: 12 }).map((_, i) => monthTotal(i) > 1.0);
+
+        return (
+          <ModalShell
+            size="xl"
+            title={
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full" style={{ background: teamColor }}></span>
+                <span>{member.team} · {member.name}</span>
+                <span className="text-zinc-400 font-normal text-sm">— 월별 MM 편집</span>
+              </span>
+            }
+            onCancel={onCancel}
+            onSubmit={() => !dupProjects && onSave({ memberId: member.id, projects })}
+            submitLabel="저장"
+            submitDisabled={dupProjects}
+          >
+            <div className="overflow-auto">
+              <table className="text-xs border-separate" style={{ borderSpacing: 0 }}>
+                <thead>
+                  <tr className="bg-zinc-50">
+                    <th className="sticky left-0 bg-zinc-50 text-left px-2 py-2 font-medium text-zinc-600 border-b border-zinc-200 w-36">프로젝트</th>
+                    {MONTHS.map((m, i) => (
+                      <th key={i} className={`px-1 py-2 font-medium text-center border-b border-zinc-200 w-14 ${overMonths[i] ? 'text-red-600' : 'text-zinc-600'}`}>
+                        {m}
+                      </th>
+                    ))}
+                    <th className="px-2 py-2 font-medium text-right text-zinc-600 border-b border-zinc-200 w-16">합계</th>
+                    <th className="px-2 py-2 font-medium text-center text-zinc-600 border-b border-zinc-200 w-20">일괄</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((p, pi) => (
+                    <tr key={pi} className="hover:bg-zinc-50/50">
+                      <td className="sticky left-0 bg-white px-2 py-1.5 border-b border-zinc-100">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: projectColor(p.project) }}></span>
+                          <select
+                            value={p.project}
+                            onChange={e => changeProject(pi, e.target.value)}
+                            className="text-xs border border-zinc-200 rounded px-1.5 py-1 bg-white flex-1 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                          >
+                            {PROJECTS.map(pr => <option key={pr} value={pr}>{pr}</option>)}
+                          </select>
+                        </div>
+                      </td>
+                      {p.monthly.map((v, mi) => (
+                        <td key={mi} className="px-0.5 py-1 border-b border-zinc-100">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="2"
+                            value={v}
+                            onChange={e => updateCell(pi, mi, e.target.value)}
+                            onFocus={e => e.target.select()}
+                            className="w-12 px-1 py-1 text-center text-xs font-mono border border-zinc-200 rounded focus:outline-none focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900"
+                            style={{
+                              background: v > 0 ? cellColor(v) + '33' : 'white',
+                            }}
+                          />
+                        </td>
+                      ))}
+                      <td className="px-2 py-1.5 text-right font-mono text-zinc-700 border-b border-zinc-100">
+                        {projectTotal(pi).toFixed(1)}
+                      </td>
+                      <td className="px-2 py-1.5 border-b border-zinc-100 text-center">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="2"
+                          placeholder="0.0"
+                          onBlur={e => {
+                            if (e.target.value !== '') {
+                              fillProject(pi, e.target.value);
+                              e.target.value = '';
+                            }
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+                          }}
+                          className="w-14 px-1 py-1 text-center text-xs font-mono border border-zinc-200 rounded focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                          title="값 입력 후 Enter/Blur 시 12개월 일괄 적용"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-zinc-50/70 font-semibold">
+                    <td className="sticky left-0 bg-zinc-50/70 px-2 py-2 text-zinc-600">월 합계</td>
+                    {MONTHS.map((_, mi) => {
+                      const t = monthTotal(mi);
+                      const over = t > 1.0;
+                      return (
+                        <td key={mi} className={`px-1 py-2 text-center font-mono ${over ? 'text-red-600' : 'text-zinc-700'}`}>
+                          {t.toFixed(1)}
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-2 text-right font-mono text-zinc-700">
+                      {projects.reduce((s, p) => s + p.monthly.reduce((a, b) => a + b, 0), 0).toFixed(1)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {dupProjects && (
+              <p className="text-xs text-red-600 mt-3">같은 프로젝트에 중복 배정되었습니다. 서로 다른 3개 프로젝트를 선택해주세요.</p>
+            )}
+            {overMonths.some(Boolean) && !dupProjects && (
+              <p className="text-xs text-amber-600 mt-3">
+                ⚠ {overMonths.map((o, i) => o ? MONTHS[i] : null).filter(Boolean).join(', ')}의 합계가 1.0 MM을 초과합니다.
+              </p>
+            )}
+            <p className="text-xs text-zinc-400 mt-3">
+              각 셀: 해당 월 해당 프로젝트의 MM (0.0 ~ 2.0). 우측 "일괄" 컬럼에 값 입력 후 Enter 시 12개월 동일 값 적용.
+            </p>
+          </ModalShell>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>

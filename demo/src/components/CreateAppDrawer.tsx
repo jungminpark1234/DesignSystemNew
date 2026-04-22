@@ -12,6 +12,27 @@ import Editor from "react-simple-code-editor";
 import Prism from "prismjs";
 import "prismjs/components/prism-yaml";
 
+// Catalog logos for drawer title icon
+import logoChroma from "@ds/icons/catalog/chroma.svg";
+import logoCodeserver from "@ds/icons/catalog/codeserver.svg";
+import logoJupyterlab from "@ds/icons/catalog/jupyterlab.svg";
+import logoLangflow from "@ds/icons/catalog/langflow.svg";
+import logoMilvus from "@ds/icons/catalog/milvus.svg";
+import logoQdrant from "@ds/icons/catalog/Qdrant.svg";
+import logoAirflow from "@ds/icons/catalog/airflow.svg";
+import logoPostgresql from "@ds/icons/platform/postgre.svg";
+
+const CATALOG_LOGO_MAP: Record<string, string> = {
+  chroma: logoChroma,
+  codeserver: logoCodeserver,
+  jupyterlab: logoJupyterlab,
+  langflow: logoLangflow,
+  milvus: logoMilvus,
+  qdrant: logoQdrant,
+  airflow: logoAirflow,
+  postgresql: logoPostgresql,
+};
+
 const ff = "'Pretendard', sans-serif";
 
 // ── Values.yaml per catalog ─────────────────────────────────────────────────
@@ -166,12 +187,44 @@ resources:
   limits:
     cpu: 4
     memory: 8Gi`,
+
+  postgresql: `# Default values for PostgreSQL (CNPG)
+# CloudNativePG Operator-based deployment
+
+cluster:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.2
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+
+  bootstrap:
+    initdb:
+      database: postgres
+      owner: postgres
+
+  storage:
+    size: 10Gi
+    storageClass: standard
+
+  resources:
+    requests:
+      cpu: 1
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+
+  monitoring:
+    enabled: true`,
 };
 
 
 // ── Code editor (DS TextArea look + syntax highlighting) ────────────────────
-function CodeEditor({ label, value, onChange, language, height = 300 }: {
-  label?: string; value: string; onChange: (v: string) => void; language: string; height?: number;
+export function CodeEditor({ label, value, onChange, language, height = 300, readOnly = false }: {
+  label?: string; value: string; onChange: (v: string) => void; language: string; height?: number; readOnly?: boolean;
 }) {
   const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
@@ -208,6 +261,7 @@ function CodeEditor({ label, value, onChange, language, height = 300 }: {
           onValueChange={onChange}
           highlight={(code) => grammar ? Prism.highlight(code, grammar, language) : code}
           padding={12}
+          disabled={readOnly}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{
@@ -273,9 +327,11 @@ interface CreateAppDrawerProps {
   open: boolean;
   onClose: () => void;
   catalogItem: CatalogItemData;
+  /** 생성 성공 시 호출 — 입력한 이름/ID를 넘겨줌 */
+  onCreate?: (payload: { name: string; id: string }) => void;
 }
 
-export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerProps) {
+export function CreateAppDrawer({ open, onClose, catalogItem, onCreate }: CreateAppDrawerProps) {
   const { colors } = useTheme();
 
   const [name, setName] = useState("");
@@ -312,6 +368,7 @@ export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerP
   const handleSubmit = () => {
     setSubmitted(true);
     if (validateName(name) || validateConnId(appId, [])) return;
+    onCreate?.({ name, id: appId });
     onClose(); reset();
   };
   const handleClose = () => { onClose(); reset(); };
@@ -329,7 +386,16 @@ export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerP
     <DrawerShell
       open={open}
       onClose={handleClose}
-      title="Create application"
+      title={(() => {
+        const logo = CATALOG_LOGO_MAP[catalogItem.id];
+        const name = catalogItem.title || "Application";
+        return (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {logo && <img src={logo} alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />}
+            {name} 애플리케이션 생성
+          </span>
+        );
+      })()}
       borderLeft={resourceGuideOpen ? `1px solid ${colors.border.secondary}` : undefined}
       footer={
         <>
@@ -342,9 +408,9 @@ export function CreateAppDrawer({ open, onClose, catalogItem }: CreateAppDrawerP
       <div style={{ marginBottom: 32 }}>
         <SectionTitle>Basic Information</SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <TextField label="Name" value={name} onChange={(e) => handleNameChange(e.target.value)} onBlur={() => setNameTouched(true)} maxLength={128} placeholder="Placeholder" state={nameErr ? "error" : "default"} helpMessage={nameErr || undefined} />
-          <TextField label="ID" value={appId} onChange={(e) => handleIdChange(e.target.value)} onBlur={() => setIdTouched(true)} maxLength={128} placeholder="my-image-classifier" state={idErr ? "error" : "default"} helpMessage={idErr || undefined} />
-          <TextArea label="Description (Optional)" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={512} placeholder="Placeholder" />
+          <TextField label="Name" value={name} onChange={(e) => handleNameChange(e.target.value)} onBlur={() => setNameTouched(true)} maxLength={128} placeholder="애플리케이션 이름 입력" state={nameErr ? "error" : "default"} helpMessage={nameErr || undefined} />
+          <TextField label="ID" value={appId} onChange={(e) => handleIdChange(e.target.value)} onBlur={() => setIdTouched(true)} maxLength={128} placeholder="my-application" state={idErr ? "error" : "default"} helpMessage={idErr || undefined} />
+          <TextArea label="Description (Optional)" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={512} placeholder="애플리케이션 설명 입력" />
         </div>
       </div>
 

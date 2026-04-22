@@ -87,7 +87,7 @@ export function PrimaryButton({ label, onClick, icon, style: styleProp }: { labe
 interface DrawerShellProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: React.ReactNode;
   width?: number | string;
   footer?: React.ReactNode;
   noBackdrop?: boolean;

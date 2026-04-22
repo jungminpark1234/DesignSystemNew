@@ -39,12 +39,11 @@ export const Icon = React.forwardRef<HTMLSpanElement, IconProps>(
       .replace(/width="[^"]*"/, `width="${size}"`)
       .replace(/height="[^"]*"/, `height="${size}"`);
 
-    // Only rewrite colors when a color prop is explicitly provided
-    if (color !== undefined) {
-      sized = sized
-        .replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"')
-        .replace(/stroke="(?!none)[^"]*"/g, 'stroke="currentColor"');
-    }
+    // Rewrite fills/strokes to currentColor so the icon inherits color
+    // from its parent. Preserve "none", "white"/"#fff"/"#ffffff" (for 2-tone icons).
+    sized = sized
+      .replace(/fill="(?!none|white|#fff|#ffffff)[^"]*"/g, 'fill="currentColor"')
+      .replace(/stroke="(?!none|white|#fff|#ffffff)[^"]*"/g, 'stroke="currentColor"');
 
     return (
       <span

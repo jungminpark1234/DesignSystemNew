@@ -118,7 +118,7 @@ function LeadingIndicator({
   if (state === "pending") {
     return (
       <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: iconContainerSize, height: iconContainerSize, flexShrink: 0 }}>
-        <Icon name="pending" size={iconContainerSize} color={dot} />
+        <Icon name="pending" size={dotSize} color={dot} />
       </span>
     );
   }
@@ -155,7 +155,7 @@ export const StatusChip: React.FC<StatusChipProps> = ({
 
   const height = size === "md" ? 32 : 24;
   const fontSize = size === "md" ? 14 : 12;
-  const dotSize = size === "md" ? 8 : 6;
+  const dotSize = 8;
   const iconContainerSize = size === "md" ? 24 : 16;
   const paddingLeft = 8;
   const paddingRight = 12;

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "@ds/components/Sidebar";
 import { GridCard } from "@ds/components/GridCard";
 import { Icon } from "@ds/components/Icon";
@@ -16,6 +16,7 @@ import logoLangflow from "@ds/icons/catalog/langflow.svg";
 import logoMilvus from "@ds/icons/catalog/milvus.svg";
 import logoQdrant from "@ds/icons/catalog/Qdrant.svg";
 import logoAirflow from "@ds/icons/catalog/airflow.svg";
+import logoPostgresql from "@ds/icons/platform/postgre.svg";
 
 interface CatalogPageProps {
   onNavigate?: (key: string) => void;
@@ -28,49 +29,74 @@ const CATALOG_ITEMS = [
     title: "Chroma DB",
     desc: "open-source embedding database for building AI applications with vector similarity search",
     logo: logoChroma,
+    category: "Vector DB",
   },
   {
     id: "codeserver",
     title: "Code server",
     desc: "VS code in the browser with full development environment and extensions support",
     logo: logoCodeserver,
+    category: "IDE",
   },
   {
     id: "jupyterlab",
     title: "JupyterLab",
     desc: "Interactive development environment for jupyter notebooks with Python kernel",
     logo: logoJupyterlab,
+    category: "IDE",
   },
   {
     id: "langflow",
     title: "Langflow",
     desc: "Visual framework for building multi-agent and RAG applications with drag-and-drop interface",
     logo: logoLangflow,
+    category: "AI Agent",
   },
   {
     id: "milvus",
     title: "Milvus",
     desc: "Cloud-native vector database built for scalable similarity search and AI applications",
     logo: logoMilvus,
+    category: "Vector DB",
   },
   {
     id: "qdrant",
     title: "Qdrant",
     desc: "Cloud-native vector database built for scalable similarity search and AI applications",
     logo: logoQdrant,
+    category: "Vector DB",
   },
   {
     id: "airflow",
-    title: "Airflow (Managed)",
+    title: "Airflow",
     desc: "Data workflow orchestration dashboard",
     logo: logoAirflow,
+    category: "Workflow",
+  },
+  {
+    id: "postgresql",
+    title: "PostgreSQL (CNPG)",
+    desc: "CloudNativePG 기반 관계형 데이터베이스. 프로젝트 내에서 즉시 배포하여 AI/ML 파이프라인에서 RDB를 활용",
+    logo: logoPostgresql,
+    category: "Database",
   },
 ];
 
 export function CatalogPage({ onNavigate, projectName = "NLP Models" }: CatalogPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("catalog");
-  const [detailApp, setDetailApp] = useState<string | null>(null);
+  const [detailApp, setDetailAppRaw] = useState<string | null>(null);
+
+  const setDetailApp = useCallback((id: string | null) => {
+    if (id && !detailApp) window.history.pushState({ catalogDetail: id }, "");
+    setDetailAppRaw(id);
+  }, [detailApp]);
+
+  useEffect(() => {
+    const handler = () => { setDetailAppRaw(null); };
+    window.addEventListener("popstate", handler);
+    return () => window.removeEventListener("popstate", handler);
+  }, []);
 
   const handleNavSelect = (key: string) => {
     setSelectedNav(key);
@@ -258,6 +284,16 @@ export function CatalogPage({ onNavigate, projectName = "NLP Models" }: CatalogP
                 key={item.id}
                 title={item.title}
                 desc={item.desc}
+                chip={
+                  <span style={{
+                    fontSize: 11, fontWeight: 500, fontFamily: "'Pretendard', sans-serif",
+                    padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0,
+                    backgroundColor: `var(--ds-bg-tertiary, #f3f4f6)`,
+                    color: `var(--ds-text-tertiary, #6a7282)`,
+                  }}>
+                    {item.category}
+                  </span>
+                }
                 onClick={() => setDetailApp(item.id)}
               >
                 <img

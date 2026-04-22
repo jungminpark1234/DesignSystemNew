@@ -11,6 +11,8 @@ export interface GridCardProps {
   title: string;
   /** Card description */
   desc?: string;
+  /** Optional chip/badge shown next to the title (e.g., category label) */
+  chip?: React.ReactNode;
   /** Whether the card is in selected/checked state */
   checked?: boolean;
   /** Click handler */
@@ -25,7 +27,7 @@ export interface GridCardProps {
 // Component
 // ──────────────────────────────────────────────────────────────────────────────
 export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
-  ({ title, desc, checked = false, onClick, children, className, style }, ref) => {
+  ({ title, desc, chip, checked = false, onClick, children, className, style }, ref) => {
     const [hovered, setHovered] = useState(false);
     const [pressed, setPressed] = useState(false);
     const [focused, setFocused] = useState(false);
@@ -139,7 +141,10 @@ export const GridCard = React.forwardRef<HTMLDivElement, GridCardProps>(
 
         {/* Text */}
         <div style={{ display: "flex", flexDirection: "column", gap: spacing[8], width: "100%" }}>
-          <p style={titleStyle}>{title}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+            <p style={titleStyle}>{title}</p>
+            {chip}
+          </div>
           {desc && <p style={descStyle}>{desc}</p>}
         </div>
       </div>

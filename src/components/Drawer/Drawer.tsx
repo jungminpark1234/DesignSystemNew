@@ -22,8 +22,8 @@ export interface DrawerProps {
   open: boolean;
   /** Called when the user clicks the close button or the backdrop */
   onClose: () => void;
-  /** Title text displayed in the header */
-  title: string;
+  /** Title displayed in the header — string or ReactNode (e.g. icon + text) */
+  title: React.ReactNode;
   /** Width of the drawer panel. Default: "max(800px, 40vw)" */
   width?: number | string;
   /** Footer content — typically Cancel/Submit buttons */
@@ -48,7 +48,7 @@ function DrawerTitle({
   onClose,
   scrolled,
 }: {
-  title: string;
+  title: React.ReactNode;
   onClose: () => void;
   scrolled: boolean;
 }) {
