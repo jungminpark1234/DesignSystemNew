@@ -19,6 +19,23 @@ export const WORKSPACE_NAV: SidebarNavItem[] = [
   },
 ];
 
+export const ADMIN_NAV: SidebarNavItem[] = [
+  { key: "workspaces", label: "워크스페이스", icon: <Icon name="workspace" size={20} /> },
+  { key: "accounts", label: "계정", icon: <Icon name="user" size={20} /> },
+  { key: "monitoring", label: "모니터링", icon: <Icon name="monitoring" size={20} /> },
+  { key: "logs", label: "로그", icon: <Icon name="search" size={20} /> },
+  {
+    key: "settings",
+    label: "설정",
+    icon: <Icon name="setting" size={20} />,
+    children: [
+      { key: "admin-general", label: "General" },
+      { key: "admin-sync", label: "Sync" },
+      { key: "admin-security", label: "Security" },
+    ],
+  },
+];
+
 export const PROJECT_NAV: SidebarNavItem[] = [
   { key: "catalog", label: "Catalog", icon: <Icon name="catalog" size={20} /> },
   { key: "application", label: "Application", icon: <Icon name="application" size={20} /> },

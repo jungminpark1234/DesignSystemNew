@@ -480,7 +480,6 @@ export function WorkspaceGeneralPage({
               flexDirection: "column",
               gap: 32,
               padding: 24,
-              maxWidth: 1048,
             }}
           >
             {/* Info alert */}

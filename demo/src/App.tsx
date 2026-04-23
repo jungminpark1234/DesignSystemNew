@@ -8,9 +8,11 @@ import { FormControlsPage } from "./pages/FormControlsPage";
 import { WorkspaceGeneralPage } from "./pages/WorkspaceGeneralPage";
 import { ApplicationPage } from "./pages/ApplicationPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { AdminGeneralPage } from "./pages/AdminGeneralPage";
 
 const TABS = [
   { key: "ws-general", label: "Workspace General" },
+  { key: "admin-general", label: "Admin · General" },
   { key: "application", label: "Application" },
   { key: "projects", label: "Projects" },
   { key: "lnb", label: "LNB Workspace" },
@@ -32,6 +34,7 @@ const NAV_TO_TAB: Record<string, TabKey> = {
   "settings": "lnb",
   "general": "ws-general",
   "role": "lnb",
+  "admin-general": "admin-general",
 };
 
 export default function App() {
@@ -119,6 +122,7 @@ export default function App() {
       {/* Page content */}
       <div style={{ flex: 1, overflow: "hidden" }}>
         {activeTab === "ws-general" && <WorkspaceGeneralPage onNavigate={handleLnbNavigate} />}
+        {activeTab === "admin-general" && <AdminGeneralPage onNavigate={handleLnbNavigate} />}
         {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "projects" && <ProjectsPage onNavigate={handleLnbNavigate} onSelectProject={handleSelectProject} />}
         {activeTab === "lnb" && <LnbWorkspacePage projectName={selectedProject} />}
