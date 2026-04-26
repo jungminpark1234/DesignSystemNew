@@ -135,6 +135,7 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
   const [selectedNav, setSelectedNav] = useState("catalog");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pgDrawerOpen, setPgDrawerOpen] = useState(false);
+  const [pgInitialName, setPgInitialName] = useState<string | undefined>(undefined);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [createdPg, setCreatedPg] = useState<{ id: string; name: string } | null>(null);
 
@@ -309,7 +310,8 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
             existingNames={[]}
             availableCnpg={[]}
             autoSelectPg={createdPg}
-            onRequestCreatePostgres={() => {
+            onRequestCreatePostgres={(initialName) => {
+              setPgInitialName(initialName);
               setDrawerOpen(false);
               setTimeout(() => setPgDrawerOpen(true), 200);
             }}
@@ -317,11 +319,13 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
           {/* PostgreSQL 생성 Drawer */}
           <CreateAppDrawer
             open={pgDrawerOpen}
-            onClose={() => setPgDrawerOpen(false)}
+            onClose={() => { setPgDrawerOpen(false); setPgInitialName(undefined); }}
+            initialName={pgInitialName}
             onCreate={({ name, id }) => {
               // PG 생성 성공 시 — 실제 입력한 이름/ID로 저장
               setCreatedPg({ id: id || `pg-${Date.now()}`, name: name });
               setPgDrawerOpen(false);
+              setPgInitialName(undefined);
               setTimeout(() => setConfirmDialogOpen(true), 200);
             }}
             catalogItem={{ id: "postgresql", title: "PostgreSQL (CNPG)", desc: "", appId: "", createdAt: "", readme: "" }}

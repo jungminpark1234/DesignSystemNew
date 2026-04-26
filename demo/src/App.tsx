@@ -9,10 +9,18 @@ import { WorkspaceGeneralPage } from "./pages/WorkspaceGeneralPage";
 import { ApplicationPage } from "./pages/ApplicationPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { AdminGeneralPage } from "./pages/AdminGeneralPage";
+import { AdminMonitoringPage } from "./pages/AdminMonitoringPage";
+import { ProjectMonitoringPage } from "./pages/ProjectMonitoringPage";
+import { RunwayAdminMonitoringPage } from "./pages/RunwayAdminMonitoringPage";
+import { InferenceEndpointPage } from "./pages/InferenceEndpointPage";
 
 const TABS = [
   { key: "ws-general", label: "Workspace General" },
   { key: "admin-general", label: "Admin · General" },
+  { key: "admin-monitoring", label: "Workspace Monitoring" },
+  { key: "project-monitoring", label: "Project · Monitoring" },
+  { key: "runway-admin-monitoring", label: "Runway Admin · Monitoring" },
+  { key: "inference", label: "Inference Endpoint" },
   { key: "application", label: "Application" },
   { key: "projects", label: "Projects" },
   { key: "lnb", label: "LNB Workspace" },
@@ -123,6 +131,26 @@ export default function App() {
       <div style={{ flex: 1, overflow: "hidden" }}>
         {activeTab === "ws-general" && <WorkspaceGeneralPage onNavigate={handleLnbNavigate} />}
         {activeTab === "admin-general" && <AdminGeneralPage onNavigate={handleLnbNavigate} />}
+        {activeTab === "admin-monitoring" && (
+          <AdminMonitoringPage
+            onNavigate={handleLnbNavigate}
+            onSelectProject={(projectName) => {
+              setSelectedProject(projectName);
+              setActiveTab("project-monitoring");
+            }}
+          />
+        )}
+        {activeTab === "project-monitoring" && (
+          <ProjectMonitoringPage
+            onNavigate={handleLnbNavigate}
+            projectName={selectedProject}
+            onSelectWorkload={(w) => {
+              setActiveTab(w.type === "inference" ? "inference" : "application");
+            }}
+          />
+        )}
+        {activeTab === "runway-admin-monitoring" && <RunwayAdminMonitoringPage onNavigate={handleLnbNavigate} />}
+        {activeTab === "inference" && <InferenceEndpointPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "projects" && <ProjectsPage onNavigate={handleLnbNavigate} onSelectProject={handleSelectProject} />}
         {activeTab === "lnb" && <LnbWorkspacePage projectName={selectedProject} />}

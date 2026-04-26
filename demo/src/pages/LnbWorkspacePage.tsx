@@ -12,7 +12,7 @@ function WorkspaceHeader() {
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 16px 12px" }}>
       <div
         style={{
-          width: 32, height: 32, borderRadius: 5.3, backgroundColor: "#dc2626",
+          width: 32, height: 32, borderRadius: 5.3, backgroundColor: "#bf6a40",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}
       >

@@ -284,16 +284,6 @@ export function CatalogPage({ onNavigate, projectName = "NLP Models" }: CatalogP
                 key={item.id}
                 title={item.title}
                 desc={item.desc}
-                chip={
-                  <span style={{
-                    fontSize: 11, fontWeight: 500, fontFamily: "'Pretendard', sans-serif",
-                    padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap", flexShrink: 0,
-                    backgroundColor: `var(--ds-bg-tertiary, #f3f4f6)`,
-                    color: `var(--ds-text-tertiary, #6a7282)`,
-                  }}>
-                    {item.category}
-                  </span>
-                }
                 onClick={() => setDetailApp(item.id)}
               >
                 <img

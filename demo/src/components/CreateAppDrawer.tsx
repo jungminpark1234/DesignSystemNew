@@ -329,9 +329,11 @@ interface CreateAppDrawerProps {
   catalogItem: CatalogItemData;
   /** 생성 성공 시 호출 — 입력한 이름/ID를 넘겨줌 */
   onCreate?: (payload: { name: string; id: string }) => void;
+  /** Drawer가 열릴 때 미리 채워둘 이름 (e.g. Airflow → PG 직접생성으로 넘어올 때) */
+  initialName?: string;
 }
 
-export function CreateAppDrawer({ open, onClose, catalogItem, onCreate }: CreateAppDrawerProps) {
+export function CreateAppDrawer({ open, onClose, catalogItem, onCreate, initialName }: CreateAppDrawerProps) {
   const { colors } = useTheme();
 
   const [name, setName] = useState("");
@@ -348,6 +350,16 @@ export function CreateAppDrawer({ open, onClose, catalogItem, onCreate }: Create
   useEffect(() => {
     setValuesYaml(VALUES_YAML[catalogItem.id] ?? "");
   }, [catalogItem.id]);
+
+  // initialName 이 바뀌거나, Drawer가 열릴 때 미리 채워줌 (사용자가 직접 수정한 적 없을 때만)
+  useEffect(() => {
+    if (open && initialName && !name) {
+      setName(initialName);
+      if (!appIdManual) setAppId(slugify(initialName).slice(0, 63).replace(/-+$/, ""));
+    }
+    // open이 닫힐 때 초기화는 reset()이 담당하므로 여기선 처리하지 않음
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialName]);
 
   const handleNameChange = (v: string) => {
     setName(v);

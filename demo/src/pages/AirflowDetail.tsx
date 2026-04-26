@@ -454,13 +454,31 @@ resources:
     cpu: 4
     memory: 8Gi`;
 
+// PostgreSQL values.yaml 템플릿 (Manual 모드용)
+const DB_VALUES_YAML_TEMPLATE = `# Airflow 외부에서 사용할 PostgreSQL 연결 설정
+# CloudNativePG 또는 직접 호스팅된 PostgreSQL을 직접 지정합니다.
+postgresql:
+  host: my-postgres.example.com
+  port: 5432
+  database: airflow_metadata
+  user: airflow
+  # 비밀번호는 Secret 으로 분리해 관리하세요
+  existingSecret: airflow-db-secret
+  sslmode: require
+
+connection:
+  poolSize: 10
+  maxOverflow: 20
+`;
+
 interface AirflowDeployDrawerProps {
   open: boolean;
   onClose: () => void;
   existingNames: string[];
   availableCnpg: AppItem[];
-  /** PostgreSQL 직접 생성 요청 — 부모가 PG Drawer를 열어주고, 완료 후 Airflow Drawer를 다시 열도록 처리 */
-  onRequestCreatePostgres?: () => void;
+  /** PostgreSQL 직접 생성 요청 — 부모가 PG Drawer를 열어주고, 완료 후 Airflow Drawer를 다시 열도록 처리.
+   *  initialName: Airflow 이름에서 자동 슬러그된 PG 이름을 PG Drawer에 그대로 전달하기 위한 값 */
+  onRequestCreatePostgres?: (initialName?: string) => void;
   /** 외부에서 방금 생성된 PG를 자동으로 옵션 목록에 추가하고 선택 상태로 만들기 위한 값 */
   autoSelectPg?: { id: string; name: string } | null;
 }
@@ -473,12 +491,15 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
   const [appIdManual, setAppIdManual] = useState(false);
   const [desc, setDesc] = useState("");
   const [valuesYaml, setValuesYaml] = useState(AIRFLOW_VALUES_YAML);
-  const [dbMode, setDbMode] = useState<"existing" | "new">("existing");
+  const [dbMode, setDbMode] = useState<"existing" | "new" | "manual">("existing");
   const [selectedCnpg, setSelectedCnpg] = useState("");
   const [createdPgOptions, setCreatedPgOptions] = useState<{ value: string; label: string }[]>([]);
   const [newAppName, setNewAppName] = useState("");
+  const [newAppNameTouched, setNewAppNameTouched] = useState(false);
   const [dbName, setDbName] = useState("airflow_metadata");
   const [dbNameManual, setDbNameManual] = useState(false);
+  const [dbNameTouched, setDbNameTouched] = useState(false);
+  const [dbValuesYaml, setDbValuesYaml] = useState(DB_VALUES_YAML_TEMPLATE);
   const [links, setLinks] = useState<{ name: string; url: string }[]>([]);
   const [resourceGuideOpen, setResourceGuideOpen] = useState(false);
   const [newDbAdvancedOpen, setNewDbAdvancedOpen] = useState(false);
@@ -505,29 +526,83 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
     return null;
   })();
 
+  // ── DB 연동 검증 ──────────────────────────────────────────────────────────
+  // 기존 PG 인스턴스가 보유한 DB 목록 (mock) — 중복 검증용. 실제로는 API 응답.
+  const EXISTING_PG_DATABASES: Record<string, string[]> = {
+    "nlp-models-pg": ["airflow_metadata", "experiments", "feature_store"],
+    "shared-pg": ["airflow_metadata", "mlflow_meta"],
+  };
+  const dbListForSelectedPg = EXISTING_PG_DATABASES[selectedCnpg] ?? [];
+  const isDbNameDuplicateInExistingPg =
+    dbMode === "existing" &&
+    selectedCnpg !== "" &&
+    dbName.trim() !== "" &&
+    dbListForSelectedPg.includes(dbName.trim());
+
+  const newPgNameErr = (() => {
+    if (dbMode !== "new") return null;
+    if (!newAppNameTouched && !submitted) return null;
+    const v = newAppName.trim();
+    if (!v) return "PostgreSQL 애플리케이션 이름을 입력해주세요";
+    if (v.length > 63) return "63자 이하로 입력해주세요";
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(v) && v.length > 1) return "소문자, 숫자, 하이픈만 사용할 수 있습니다";
+    if (existingNames.includes(v)) return "이미 존재하는 애플리케이션 이름입니다";
+    if (v === name.trim()) return "Airflow 애플리케이션과 동일한 이름은 사용할 수 없습니다";
+    return null;
+  })();
+
+  const dbNameErr = (() => {
+    if (dbMode === "manual") return null;
+    if (!dbNameTouched && !submitted) return null;
+    const v = dbName.trim();
+    if (!v) return "Database 이름을 입력해주세요";
+    if (!/^[a-z_][a-z0-9_]*$/.test(v)) return "소문자, 숫자, 언더스코어(_)만 사용 가능 (시작은 문자 또는 _)";
+    if (v.length > 63) return "63자 이하로 입력해주세요";
+    return null;
+  })();
+
   const handleNameChange = (v: string) => {
     setName(v);
     const slug = v.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 63);
     if (!appIdManual) setAppId(slug);
     if (!dbNameManual) {
-      // DB 이름은 언더스코어(_) 스타일 + "-pg" 접미사
+      // DB 이름은 언더스코어(_) 스타일 + "_meta" 접미사
       const dbSlug = v.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 50);
-      setDbName(dbSlug ? `${dbSlug}_pg` : "");
+      setDbName(dbSlug ? `${dbSlug}_meta` : "airflow_metadata");
+    }
+    // 새 PG 앱 기본 이름 — Airflow 이름이 없거나 사용자가 직접 입력하지 않은 경우만 자동 채움
+    if (!newAppNameTouched) {
+      setNewAppName(slug ? `${slug}-pg` : "");
     }
   };
 
   const reset = () => {
     setName(""); setAppId(""); setAppIdManual(false); setDesc("");
     setValuesYaml(AIRFLOW_VALUES_YAML);
-    setDbMode("existing"); setSelectedCnpg(""); setNewAppName(""); setDbName("airflow_metadata"); setDbNameManual(false); setLinks([]); setResourceGuideOpen(false); setCreatedPgOptions([]); setNewDbAdvancedOpen(false);
+    setDbMode("existing"); setSelectedCnpg(""); setNewAppName(""); setNewAppNameTouched(false);
+    setDbName("airflow_metadata"); setDbNameManual(false); setDbNameTouched(false);
+    setDbValuesYaml(DB_VALUES_YAML_TEMPLATE);
+    setLinks([]); setResourceGuideOpen(false); setCreatedPgOptions([]); setNewDbAdvancedOpen(false);
     setSubmitted(false); setNameTouched(false);
     lastAutoSelectId.current = null;
   };
 
   const handleSubmit = () => {
     setSubmitted(true); setNameTouched(true);
+    setDbNameTouched(true); setNewAppNameTouched(true);
     if (nameErr) return;
-    if (dbMode === "existing" && !selectedCnpg) return;
+    if (dbMode === "existing") {
+      if (!selectedCnpg) return;
+      if (dbNameErr) return;
+      if (isDbNameDuplicateInExistingPg) return; // warning과 함께 차단
+    }
+    if (dbMode === "new") {
+      if (newPgNameErr) return;
+      if (dbNameErr) return;
+    }
+    if (dbMode === "manual") {
+      if (!dbValuesYaml.trim()) return;
+    }
     onClose(); reset();
   };
   const handleClose = () => { onClose(); reset(); };
@@ -572,48 +647,75 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
           Airflow는 DAG 실행 이력과 메타데이터 저장을 위해 PostgreSQL 애플리케이션이 필요합니다.
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* 공통: 논리적 DB 이름 */}
-          <TextField label="Database 이름" value={dbName}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setDbName(e.target.value); setDbNameManual(true); }}
-            placeholder="airflow_metadata"
-            helpMessage="Database 애플리케이션 내에 생성될 논리적 Database 이름입니다." />
-
           {/* 분기: 연동 방식 (기존 연결이 default) */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label style={{ fontSize: 14, fontWeight: 500, color: colors.text.interactive.secondary, fontFamily: ff }}>
               연동 방식
             </label>
-            <div style={{ display: "flex", gap: 16 }}>
-              <Radio name="dbMode" label="기존 Database 애플리케이션에 연결" checked={dbMode === "existing"} onChange={() => setDbMode("existing")} />
-              <Radio name="dbMode" label="새로 생성하여 연결" checked={dbMode === "new"} onChange={() => setDbMode("new")} />
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <Radio name="dbMode" label="기존 PostgreSQL 애플리케이션에 연결" checked={dbMode === "existing"} onChange={() => setDbMode("existing")} style={{ padding: "8px 0" }} />
+              <Radio name="dbMode" label="새 PostgreSQL 애플리케이션 생성하여 연결" checked={dbMode === "new"} onChange={() => setDbMode("new")} style={{ padding: "8px 0" }} />
+              <Radio name="dbMode" label="values.yaml로 직접 입력 (외부 PostgreSQL)" checked={dbMode === "manual"} onChange={() => setDbMode("manual")} style={{ padding: "8px 0" }} />
             </div>
           </div>
 
+          {/* ── 1. 기존 PG 연결 ─────────────────────────────────────── */}
           {dbMode === "existing" && (() => {
             const baseOptions = availableCnpg.map(c => ({ value: c.id, label: c.title }));
             const mergedOptions = [...createdPgOptions, ...baseOptions];
             const finalOptions = mergedOptions.length > 0 ? mergedOptions : [
               { value: "nlp-models-pg", label: "nlp-models-pg" },
+              { value: "shared-pg", label: "shared-pg" },
             ];
+            const currentPgValue = selectedCnpg || finalOptions[0].value;
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 8, backgroundColor: colors.bg.secondary }}>
-                <Select label="Database 애플리케이션" placeholder="애플리케이션 선택"
+                <Select label="PostgreSQL 애플리케이션" placeholder="애플리케이션 선택"
                   options={finalOptions}
-                  value={selectedCnpg || finalOptions[0].value} onChange={setSelectedCnpg}
-                  helpMessage="여러 Airflow에서 동일한 Database 애플리케이션을 공유할 수 있습니다." />
+                  value={currentPgValue} onChange={setSelectedCnpg}
+                  helpMessage="기존에 생성된 PostgreSQL 애플리케이션을 선택하세요." />
+
+                <TextField label="Database 이름" value={dbName}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setDbName(e.target.value); setDbNameManual(true); }}
+                  onBlur={() => setDbNameTouched(true)}
+                  placeholder="airflow_metadata"
+                  state={dbNameErr || isDbNameDuplicateInExistingPg ? "error" : "default"}
+                  helpMessage={dbNameErr || (isDbNameDuplicateInExistingPg ? `'${dbName}' 은(는) 이미 ${currentPgValue}에 존재하는 Database입니다.` : "선택한 PostgreSQL 애플리케이션 안에 새로 생성될 논리적 Database 이름입니다.")}
+                />
+
+                {isDbNameDuplicateInExistingPg && (
+                  <Alert
+                    status="warning"
+                    alertStyle="subtle"
+                    variant="title-desc"
+                    title="이미 존재하는 Database 이름입니다"
+                    description={
+                      <span>
+                        같은 PostgreSQL 인스턴스의 동일 Database를 다른 Airflow와 공유하면 메타데이터 마이그레이션이 충돌하여 양쪽 인스턴스의 DAG 실행 데이터가 손상될 수 있습니다. 다른 Database 이름을 사용해주세요.
+                      </span>
+                    }
+                  />
+                )}
               </div>
             );
           })()}
 
+          {/* ── 2. 새 PG 생성 ───────────────────────────────────────── */}
           {dbMode === "new" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 8, backgroundColor: colors.bg.secondary }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                <Icon name="info-circle-stroke" size={16} color={colors.icon.secondary} style={{ flexShrink: 0, marginTop: 2 }} />
-                <div style={{ fontSize: 13, color: colors.text.secondary, fontFamily: ff, lineHeight: "20px" }}>
-                  기본 설정으로 PostgreSQL 애플리케이션이 자동 생성됩니다.<br/>
-                  생성 후 애플리케이션 상세에서 수정하거나 바꿀 수 있습니다.
-                </div>
-              </div>
+              <TextField label="새 PostgreSQL 애플리케이션 이름" value={newAppName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setNewAppName(e.target.value); setNewAppNameTouched(true); }}
+                onBlur={() => setNewAppNameTouched(true)}
+                placeholder="my-airflow-pg"
+                state={newPgNameErr ? "error" : "default"}
+                helpMessage={newPgNameErr || "새로 만들 PostgreSQL 애플리케이션의 이름입니다. (소문자, 숫자, 하이픈)"} />
+
+              <TextField label="Database 이름" value={dbName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setDbName(e.target.value); setDbNameManual(true); }}
+                onBlur={() => setDbNameTouched(true)}
+                placeholder="airflow_metadata"
+                state={dbNameErr ? "error" : "default"}
+                helpMessage={dbNameErr || "새 PG 인스턴스 안에서 사용할 논리적 Database 이름입니다. 다른 PG 인스턴스의 Database와 이름이 같아도 무방합니다."} />
 
               {/* 상세설정 아코디언 */}
               <button onClick={() => setNewDbAdvancedOpen(!newDbAdvancedOpen)} style={{
@@ -629,11 +731,30 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
                   <div style={{ fontSize: 13, color: colors.text.secondary, fontFamily: ff, lineHeight: "20px" }}>
                     리소스, 스토리지, 환경변수 등 PostgreSQL 애플리케이션을 상세하게 설정하려면 아래 버튼으로 직접 생성하세요.
                   </div>
-                  <SecondaryButton label="PostgreSQL 직접 생성" onClick={() => onRequestCreatePostgres?.()}
+                  <SecondaryButton label="PostgreSQL 직접 생성" onClick={() => onRequestCreatePostgres?.(newAppName.trim() || undefined)}
                     icon={<Icon name="create" size={16} color="currentColor" />}
                     style={{ alignSelf: "flex-start", height: 32, padding: "6px 12px", fontSize: 12 }} />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── 3. values.yaml 직접 입력 ─────────────────────────────── */}
+          {dbMode === "manual" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 8, backgroundColor: colors.bg.secondary }}>
+              <Alert
+                status="info"
+                alertStyle="subtle"
+                variant="desc"
+                description="외부에서 호스팅 중인 PostgreSQL을 사용할 때 선택하세요. host, port, database, user, secret 정보를 정확히 입력해야 Airflow가 정상 부팅됩니다."
+              />
+              <CodeEditor
+                label="postgresql values.yaml"
+                value={dbValuesYaml}
+                onChange={setDbValuesYaml}
+                language="yaml"
+                height={260}
+              />
             </div>
           )}
         </div>

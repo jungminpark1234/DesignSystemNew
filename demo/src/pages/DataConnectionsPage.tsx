@@ -89,7 +89,7 @@ function TableRow({
 }
 
 /* ── Pagination ── */
-function PaginationBar({ current, totalPages, onChange }: { current: number; totalPages: number; onChange: (p: number) => void }) {
+export function PaginationBar({ current, totalPages, onChange }: { current: number; totalPages: number; onChange: (p: number) => void }) {
   const { colors } = useTheme();
 
   const getPages = (): (number | string)[] => {

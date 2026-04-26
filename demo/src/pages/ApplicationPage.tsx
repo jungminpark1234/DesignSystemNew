@@ -19,6 +19,7 @@ import { useTheme } from "../theme";
 import { PROJECT_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
 import { ListPage, PageTitle, PageDescription, DetailPage, DetailContentWithSidebar } from "../components/PageLayout";
+import { ApplicationMonitoringTab } from "./ApplicationMonitoringTab";
 import { DrawerShell, SecondaryButton, PrimaryButton } from "../components/DrawerShell";
 import { AirflowInstanceDetail, AirflowDeployDrawer } from "./AirflowDetail";
 import { CATALOG_README } from "../data/catalogReadme";
@@ -508,8 +509,12 @@ function CardGridView({ items, onSelectItem }: { items: AppItem[]; onSelectItem?
                 {item.templateId && (() => {
                   const tpl = CATALOG_TEMPLATES.find(t => t.id === item.templateId);
                   return tpl ? (
-                    <span style={{ fontSize: 10, fontWeight: 500, color: colors.text.tertiary, fontFamily: ff,
-                      padding: "2px 6px", borderRadius: 4, backgroundColor: colors.bg.tertiary, whiteSpace: "nowrap" }}>{tpl.category}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4,
+                      fontSize: 10, fontWeight: 500, color: colors.text.tertiary, fontFamily: ff,
+                      padding: "2px 6px", borderRadius: 4, backgroundColor: colors.bg.tertiary, whiteSpace: "nowrap" }}>
+                      <img src={tpl.logo} alt="" style={{ width: 16, height: 16, objectFit: "contain", flexShrink: 0 }} />
+                      {tpl.title}
+                    </span>
                   ) : null;
                 })()}
                 {item.source === "custom" && (
@@ -584,6 +589,7 @@ function DbInstanceDetail({ item, onBack, onDelete, onNavigate, projectName }: D
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("application");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<"overview" | "monitoring">("overview");
 
   const handleNavSelect = (key: string) => { setSelectedNav(key); onNavigate?.(key); };
   const status = STATUS_CHIP_MAP[item.status];
@@ -615,6 +621,21 @@ function DbInstanceDetail({ item, onBack, onDelete, onNavigate, projectName }: D
             />
           }
         >
+          {/* Detail tabs (Overview / Monitoring) */}
+          <div style={{ alignSelf: "flex-start" }}>
+            <Tabs
+              items={[
+                { key: "overview",   label: "Overview" },
+                { key: "monitoring", label: "Monitoring" },
+              ]}
+              selectedKey={detailTab}
+              onChange={(k) => setDetailTab(k as "overview" | "monitoring")}
+            />
+          </div>
+
+          {detailTab === "monitoring" ? (
+            <ApplicationMonitoringTab appName={item.title} />
+          ) : (
           <DetailContentWithSidebar
             sidebar={
               <>
@@ -687,6 +708,7 @@ function DbInstanceDetail({ item, onBack, onDelete, onNavigate, projectName }: D
       cpu: ${db.cpu.replace(" Cores", "")}
       memory: ${db.memory.replace(" GiB", "Gi")}`} onChange={() => {}} language="yaml" readOnly height={240} />
           </DetailContentWithSidebar>
+          )}
         </DetailPage>
       </div>
 
@@ -1323,6 +1345,8 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
   const [items, setItems] = useState<AppItem[]>(APP_ITEMS);
   const [detailItem, setDetailItemRaw] = useState<AppItem | null>(null);
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  // Detail 페이지 상단 탭 — Overview / Monitoring
+  const [detailTab, setDetailTab] = useState<"overview" | "monitoring">("overview");
 
   // 브라우저 뒤로가기 지원
   const setDetailItem = React.useCallback((item: AppItem | null) => {
@@ -1332,6 +1356,7 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
       // 뒤로가기로 이미 pop된 경우가 아니면 back
     }
     setDetailItemRaw(item);
+    setDetailTab("overview"); // 다른 앱 진입 시 항상 Overview부터
   }, [detailItem]);
 
   React.useEffect(() => {
@@ -1358,8 +1383,8 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
       const typeMatch = !activeFilters.includes("type") || typeFilter.size === 0 || (() => {
         if (typeFilter.has("custom") && item.source === "custom") return true;
         if (!item.templateId) return false;
-        const tpl = CATALOG_TEMPLATES.find(t => t.id === item.templateId);
-        return tpl ? typeFilter.has(tpl.category) : false;
+        // 이제 typeFilter는 catalog template id (postgresql, airflow, jupyterlab 등) 기준으로 매칭
+        return typeFilter.has(item.templateId);
       })();
       const mineMatch = !activeFilters.includes("mine") || onlyMine === "all" || item.creator === CURRENT_USER;
       return searchMatch && statusMatch && typeMatch && mineMatch;
@@ -1428,6 +1453,21 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
               />
             }
           >
+            {/* Detail tabs (Overview / Monitoring) */}
+            <div style={{ alignSelf: "flex-start" }}>
+              <Tabs
+                items={[
+                  { key: "overview",   label: "Overview" },
+                  { key: "monitoring", label: "Monitoring" },
+                ]}
+                selectedKey={detailTab}
+                onChange={(k) => setDetailTab(k as "overview" | "monitoring")}
+              />
+            </div>
+
+            {detailTab === "monitoring" ? (
+              <ApplicationMonitoringTab appName={detailItem.title} />
+            ) : (
             <DetailContentWithSidebar
               sidebar={
                 <>
@@ -1488,6 +1528,7 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
               <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>values.yaml</h2>
               <CodeEditor value={gYaml} onChange={() => {}} language="yaml" readOnly height={320} />
             </DetailContentWithSidebar>
+            )}
           </DetailPage>
         </div>
       </div>
@@ -1532,7 +1573,11 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
               { key: "type", label: "Type" },
               { key: "mine", label: "Created by" },
             ];
-            const TYPE_CATEGORIES = ["Database", "IDE", "Workflow", "Vector DB", "AI Agent"];
+            // 카탈로그 템플릿 기반 필터 옵션 (Database/IDE 같은 카테고리 대신, 실제 카탈로그 항목으로 분류)
+            const TYPE_TEMPLATES: Array<{ value: string; label: string; logo?: string }> = [
+              ...CATALOG_TEMPLATES.map(t => ({ value: t.id, label: t.title, logo: t.logo })),
+              { value: "custom", label: "Custom" },
+            ];
             const STATUS_OPTS: Array<{ value: AppStatus; label: string }> = [
               { value: "running", label: "Running" },
               { value: "deploying", label: "Deploying" },
@@ -1612,13 +1657,12 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
                         <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 10,
                           border: `1px solid ${colors.border.secondary}`, borderRadius: 8,
                           backgroundColor: colors.bg.primary, boxShadow: "0 4px 12px rgba(0,0,0,0.12)", overflow: "hidden", minWidth: 180 }}>
-                          {[...TYPE_CATEGORIES, "Custom"].map((cat) => {
-                            const checked = typeFilter.has(cat === "Custom" ? "custom" : cat);
+                          {TYPE_TEMPLATES.map((opt) => {
+                            const checked = typeFilter.has(opt.value);
                             return (
-                              <button key={cat} onClick={() => {
-                                const val = cat === "Custom" ? "custom" : cat;
+                              <button key={opt.value} onClick={() => {
                                 const next = new Set(typeFilter);
-                                if (checked) next.delete(val); else next.add(val);
+                                if (checked) next.delete(opt.value); else next.add(opt.value);
                                 setTypeFilter(next);
                               }}
                                 style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 16px", border: "none", cursor: "pointer", textAlign: "left",
@@ -1626,7 +1670,10 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
                                 onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.backgroundColor = colors.bg.secondary; }}
                                 onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.backgroundColor = "transparent"; }}>
                                 <span style={{ pointerEvents: "none" }}><Checkbox checked={checked} onChange={() => {}} /></span>
-                                {cat}
+                                {opt.logo
+                                  ? <img src={opt.logo} alt="" style={{ width: 16, height: 16, objectFit: "contain", flexShrink: 0 }} />
+                                  : <Icon name="application" size={16} color={colors.icon.secondary} />}
+                                <span>{opt.label}</span>
                               </button>
                             );
                           })}

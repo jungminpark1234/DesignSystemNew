@@ -350,68 +350,96 @@ const NODES: NodeData[] = [
 interface ResourceGuideModalProps {
   open: boolean;
   onClose: () => void;
+  /** "Resource allocation" 섹션을 숨김 (e.g. 모니터링 페이지에서는 이미 동일 정보를 보여주므로 중복 제거) */
+  hideResourceAllocation?: boolean;
+  /** Base domain 섹션을 숨김 */
+  hideBaseDomain?: boolean;
+  /** 상단 탭(Resource overview / Volume)을 숨김. 숨기면 overview 콘텐츠만 표시 */
+  hideTabs?: boolean;
+  /** standalone=true 면 일반 right-side Drawer로 동작 (다른 Drawer 옆에 붙는 패널 모드 OFF) */
+  standalone?: boolean;
 }
 
-export function ResourceGuideModal({ open, onClose }: ResourceGuideModalProps) {
+export function ResourceGuideModal({
+  open,
+  onClose,
+  hideResourceAllocation = false,
+  hideBaseDomain = false,
+  hideTabs = false,
+  standalone = false,
+}: ResourceGuideModalProps) {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState("overview");
 
-  if (!open) return null;
+  // side-by-side 모드: panelStyle override 때문에 DS Drawer 의 transform 슬라이드가 작동하지 않음
+  // → open=false 일 때 아예 unmount 해야 안 보임
+  if (!standalone && !open) return null;
+
+  const sideBySideProps = {
+    noBackdrop: true,
+    panelStyle: { position: "fixed" as const, top: 0, right: "max(800px, 40vw)", bottom: 0, zIndex: 401 },
+  };
+  const standaloneProps = {};
 
   return (
     <DrawerShell
-      open={true}
+      open={open}
       onClose={onClose}
       title="Resource guide"
-      noBackdrop
-      panelStyle={{ position: "fixed", top: 0, right: "max(800px, 40vw)", bottom: 0, zIndex: 401 }}
+      {...(standalone ? standaloneProps : sideBySideProps)}
       footer={<SecondaryButton label="Close" onClick={onClose} />}
     >
       {/* Base domain */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
-        <div style={{ display: "flex", flexDirection: "column", height: 32, justifyContent: "center" }}>
-          <span style={{ fontSize: 16, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>Base domain</span>
+      {!hideBaseDomain && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", height: 32, justifyContent: "center" }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>Base domain</span>
+          </div>
+          <Alert
+            status="brand"
+            alertStyle="subtle"
+            variant="desc"
+            description="v2.mrxrunway.ai"
+            icon={<Icon name="global" size={24} color={colors.icon.secondary} />}
+            dismissible={false}
+          />
         </div>
-        <Alert
-          status="brand"
-          alertStyle="subtle"
-          variant="desc"
-          description="v2.mrxrunway.ai"
-          icon={<Icon name="global" size={24} color={colors.icon.secondary} />}
-          dismissible={false}
-        />
-      </div>
+      )}
 
       {/* Tabs (DS component) */}
-      <div style={{ marginBottom: 24 }}>
-        <Tabs
-          items={[
-            { key: "overview", label: "Resource overview" },
-            { key: "volume", label: "Volume" },
-          ]}
-          selectedKey={activeTab}
-          onChange={setActiveTab}
-        />
-      </div>
+      {!hideTabs && (
+        <div style={{ marginBottom: 24 }}>
+          <Tabs
+            items={[
+              { key: "overview", label: "Resource overview" },
+              { key: "volume", label: "Volume" },
+            ]}
+            selectedKey={activeTab}
+            onChange={setActiveTab}
+          />
+        </div>
+      )}
 
-      {activeTab === "overview" && (
+      {(hideTabs || activeTab === "overview") && (
         <>
           {/* Resource allocation */}
-          <div style={{ marginBottom: 32 }}>
-            <span style={{ fontSize: 16, fontWeight: 600, color: colors.text.primary, fontFamily: ff, display: "block", marginBottom: 16 }}>
-              Resource allocation
-            </span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", gap: 16 }}>
-                <AllocationCard icon="cpu" label="CPU" pct={75} allocated="210 Cores" capacity="256 Cores" allocatable="46" allocatableUnit="Cores" animate />
-                <AllocationCard icon="memory" label="Memory" pct={25} allocated="24 GiB" capacity="174 GiB" allocatable="150" allocatableUnit="GiB" animate />
-              </div>
-              <div style={{ display: "flex", gap: 16 }}>
-                <AllocationCard icon="disk" label="Storage" pct={99} allocated="48000 GiB" capacity="50000 GiB" allocatable="2000" allocatableUnit="GiB" animate />
-                <AllocationCard icon="gpu" label="GPU" pct={25} allocated="4 GPUs" capacity="16 GPUs" allocatable="12" allocatableUnit="GPUs" animate />
+          {!hideResourceAllocation && (
+            <div style={{ marginBottom: 32 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: colors.text.primary, fontFamily: ff, display: "block", marginBottom: 16 }}>
+                Resource allocation
+              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <AllocationCard icon="cpu" label="CPU" pct={75} allocated="210 Cores" capacity="256 Cores" allocatable="46" allocatableUnit="Cores" animate />
+                  <AllocationCard icon="memory" label="Memory" pct={25} allocated="24 GiB" capacity="174 GiB" allocatable="150" allocatableUnit="GiB" animate />
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <AllocationCard icon="disk" label="Storage" pct={99} allocated="48000 GiB" capacity="50000 GiB" allocatable="2000" allocatableUnit="GiB" animate />
+                  <AllocationCard icon="gpu" label="GPU" pct={25} allocated="4 GPUs" capacity="16 GPUs" allocatable="12" allocatableUnit="GPUs" animate />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Node resources */}
           <div>

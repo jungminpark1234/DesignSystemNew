@@ -1,0 +1,18 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="ml-arrow" d="M1.92001 11.04L0 12.09L4.86025e-06 0.96C5.09177e-06 0.429807 0.429812 0 0.960005 0C1.4902 0 1.92001 0.429807 1.92001 0.96V11.04Z" fill="#00DECE"/>
+  </defs>
+  <!-- 6 arrows arranged around center (12,12). Each centered at unrotated (0.96, 6.045) -->
+  <!-- Fragment 1: rotation 180, container center (6.78, 16.635) -->
+  <g transform="translate(6.78 16.635) rotate(180) translate(-0.96 -6.045)"><use href="#ml-arrow"/></g>
+  <!-- Fragment 2: rotation 120, container center (13.455, 18.914) -->
+  <g transform="translate(13.455 18.914) rotate(120) translate(-0.96 -6.045)"><use href="#ml-arrow"/></g>
+  <!-- Fragment 3: rotation 60, container center (18.675, 14.174) -->
+  <g transform="translate(18.675 14.174) rotate(60) translate(-0.96 -6.045)"><use href="#ml-arrow"/></g>
+  <!-- Fragment 4: rotation 0, container center (17.28, 7.365) -->
+  <g transform="translate(17.28 7.365) rotate(0) translate(-0.96 -6.045)"><use href="#ml-arrow"/></g>
+  <!-- Fragment 5: rotation -60, container center (10.635, 5.114) -->
+  <g transform="translate(10.635 5.114) rotate(-60) translate(-0.96 -6.045)"><use href="#ml-arrow"/></g>
+  <!-- Fragment 6: rotation -120, container center (5.415, 9.794) -->
+  <g transform="translate(5.415 9.794) rotate(-120) translate(-0.96 -6.045)"><use href="#ml-arrow"/></g>
+</svg>

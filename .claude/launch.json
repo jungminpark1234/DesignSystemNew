@@ -3,19 +3,17 @@
   "configurations": [
     {
       "name": "demo",
-      "runtimeExecutable": "/opt/homebrew/bin/npx",
-      "runtimeArgs": ["vite"],
-      "port": 5173,
-      "cwd": "demo",
-      "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5180"],
+      "port": 5180,
+      "cwd": "demo"
     },
     {
       "name": "docs",
-      "runtimeExecutable": "/opt/homebrew/bin/npx",
+      "runtimeExecutable": "npx",
       "runtimeArgs": ["vite"],
       "port": 5174,
-      "cwd": "docs",
-      "env": { "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" }
+      "cwd": "docs"
     }
   ]
 }
