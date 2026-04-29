@@ -31,6 +31,7 @@ function setCssVars(colors: ThemeColors) {
   root.style.setProperty("--ds-bg-primary", colors.bg.primary);
   root.style.setProperty("--ds-bg-secondary", colors.bg.secondary);
   root.style.setProperty("--ds-bg-tertiary", colors.bg.tertiary);
+  root.style.setProperty("--ds-bg-tertiary-hovered", colors.bg.tertiaryHovered);
   root.style.setProperty("--ds-bg-interactive-runway-selected", colors.bg.interactive.runwaySelected);
 
   // text

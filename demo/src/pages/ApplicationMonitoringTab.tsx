@@ -184,7 +184,7 @@ function PodsTable({
   pods, query, selectedPod, onSelectPod,
 }: {
   pods: PodRow[]; query: string;
-  selectedPod: string | null; onSelectPod: (name: string) => void;
+  selectedPod: string | null; onSelectPod?: (name: string) => void;
 }) {
   const { colors } = useTheme();
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "name", dir: "asc" });
@@ -269,10 +269,10 @@ function PodsTable({
             return (
               <tr
                 key={p.name}
-                onClick={() => onSelectPod(p.name)}
+                onClick={onSelectPod ? () => onSelectPod(p.name) : undefined}
                 style={{
-                  cursor: "pointer",
-                  backgroundColor: isSelected ? colors.bg.interactive.runwaySelected : "transparent",
+                  cursor: onSelectPod ? "pointer" : "default",
+                  backgroundColor: onSelectPod && isSelected ? colors.bg.interactive.runwaySelected : "transparent",
                   borderTop: `1px solid ${colors.border.tertiary}`,
                 }}
               >
@@ -596,19 +596,31 @@ interface ApplicationMonitoringTabProps {
     value: string;
     onChange: (v: string) => void;
   };
+  /** Pod count to display (matches the corresponding workload's podCount). When omitted, shows full SAMPLE_PODS. */
+  podCount?: number;
 }
 
-export function ApplicationMonitoringTab({ appName, scopeSelector }: ApplicationMonitoringTabProps) {
+export function ApplicationMonitoringTab({ appName, scopeSelector, podCount }: ApplicationMonitoringTabProps) {
   const { colors } = useTheme();
   const [timeRange, setTimeRange] = useState<TimeRange>("1H");
   const [customFrom, setCustomFrom] = useState(() => isoLocalNow(-1));
   const [customTo, setCustomTo] = useState(() => isoLocalNow(0));
   const [podQuery, setPodQuery] = useState("");
-  const [selectedPod, setSelectedPod] = useState<string | null>(SAMPLE_PODS[0]?.name ?? null);
-  const [scope, setScope] = useState<"all" | "pod">("all");
+  const pods = useMemo(
+    () => podCount !== undefined ? SAMPLE_PODS.slice(0, Math.max(0, podCount)) : SAMPLE_PODS,
+    [podCount]
+  );
+  // Trend chart scope — "all" = aggregate sum, or a pod name for single-pod view.
+  const [trendScope, setTrendScope] = useState<string>("all");
 
-  const aggregates = useMemo(() => aggregate(SAMPLE_PODS), []);
-  const focusPod = SAMPLE_PODS.find((p) => p.name === selectedPod) ?? SAMPLE_PODS[0];
+  // If pod set changes (deep-link to different workload), reset trend scope.
+  useEffect(() => {
+    setTrendScope("all");
+  }, [pods]);
+
+  const aggregates = useMemo(() => aggregate(pods), [pods]);
+  const focusPod = pods.find((p) => p.name === trendScope);
+  const isAggregate = trendScope === "all";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
@@ -645,95 +657,34 @@ export function ApplicationMonitoringTab({ appName, scopeSelector }: Application
         </div>
       </div>
 
-      {/* Pods table */}
-      <div>
-        <SectionTitle title="파드별 자원 현황" />
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
-          <div style={{ maxWidth: 280, flex: 1 }}>
-            <TextField
-              value={podQuery}
-              onChange={(e) => setPodQuery(e.target.value)}
-              placeholder="Pod 이름 검색..."
-              leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
-            />
-          </div>
-          <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>
-            행 클릭 시 아래 추세 그래프에 해당 파드가 반영됩니다
-          </span>
-        </div>
-        <PodsTable
-          pods={SAMPLE_PODS}
-          query={podQuery}
-          selectedPod={selectedPod}
-          onSelectPod={setSelectedPod}
-        />
-      </div>
-
       {/* 자원 추세 그래프 */}
       <div>
         <SectionTitle
           title="자원 추세"
-          right={
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              {/* Scope toggle (전체 합산 / 선택 파드) */}
-              <div
-                style={{
-                  display: "inline-flex",
-                  border: `1px solid ${colors.border.secondary}`,
-                  borderRadius: 6,
-                  overflow: "hidden",
-                  height: 32,
-                }}
-              >
-                {([
-                  { key: "all", label: "전체 합산" },
-                  { key: "pod", label: "단일 파드" },
-                ] as const).map((opt, i) => {
-                  const sel = opt.key === scope;
-                  return (
-                    <button
-                      key={opt.key}
-                      onClick={() => setScope(opt.key)}
-                      disabled={opt.key === "pod" && SAMPLE_PODS.length === 0}
-                      style={{
-                        padding: "0 12px",
-                        border: "none",
-                        borderLeft: i === 0 ? "none" : `1px solid ${colors.border.secondary}`,
-                        backgroundColor: sel ? colors.bg.tertiary : colors.bg.primary,
-                        fontSize: 12,
-                        fontWeight: sel ? 600 : 500,
-                        color: sel ? colors.text.primary : colors.text.secondary,
-                        fontFamily: ff,
-                        cursor: opt.key === "pod" && SAMPLE_PODS.length === 0 ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* 파드 단일 선택 — 단일 파드 모드일 때만 */}
-              {scope === "pod" && SAMPLE_PODS.length > 0 && (
-                <div style={{ minWidth: 240 }}>
-                  <Select
-                    options={SAMPLE_PODS.map((p) => ({ value: p.name, label: p.name }))}
-                    value={selectedPod ?? SAMPLE_PODS[0].name}
-                    onChange={setSelectedPod}
-                    aria-label="파드 선택"
-                  />
-                </div>
-              )}
-              <TimeRangeRow
-                value={timeRange} onChange={setTimeRange}
-                customFrom={customFrom} customTo={customTo}
-                onCustomFromChange={setCustomFrom} onCustomToChange={setCustomTo}
-                onApplyCustom={() => {}}
+          adjacent={
+            <div style={{ minWidth: 200 }}>
+              <Select
+                options={[
+                  { value: "all", label: "전체" },
+                  ...pods.map((p) => ({ value: p.name, label: p.name })),
+                ]}
+                value={trendScope}
+                onChange={setTrendScope}
+                aria-label="추세 범위"
               />
             </div>
           }
+          right={
+            <TimeRangeRow
+              value={timeRange} onChange={setTimeRange}
+              customFrom={customFrom} customTo={customTo}
+              onCustomFromChange={setCustomFrom} onCustomToChange={setCustomTo}
+              onApplyCustom={() => {}}
+            />
+          }
         />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16 }}>
-          {scope === "all" ? (
+          {isAggregate ? (
             <>
               <PodTrendChart title="CPU"    unit="Cores" request={aggregates[0].request} limit={aggregates[0].limit} peak={aggregates[0].limit * 0.85} seed={11} />
               <PodTrendChart title="Memory" unit="GiB"   request={aggregates[1].request} limit={aggregates[1].limit} peak={aggregates[1].limit * 0.7}  seed={22} />
@@ -755,6 +706,26 @@ export function ApplicationMonitoringTab({ appName, scopeSelector }: Application
             )
           )}
         </div>
+      </div>
+
+      {/* Pods table */}
+      <div>
+        <SectionTitle title="파드별 자원 현황" />
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+          <div style={{ maxWidth: 280, flex: 1 }}>
+            <TextField
+              value={podQuery}
+              onChange={(e) => setPodQuery(e.target.value)}
+              placeholder="Pod 이름 검색..."
+              leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
+            />
+          </div>
+        </div>
+        <PodsTable
+          pods={pods}
+          query={podQuery}
+          selectedPod={null}
+        />
       </div>
     </div>
   );

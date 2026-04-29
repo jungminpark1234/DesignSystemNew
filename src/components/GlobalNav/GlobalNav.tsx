@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { spacing, borderRadius } from "../../tokens/spacing";
+import { fontFamily, fontWeight } from "../../tokens/typography";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Design tokens
@@ -7,17 +9,23 @@ const tokens = {
   color: {
     bg: { primary: "var(--ds-bg-primary, #ffffff)" },
     border: { primary: "var(--ds-border-secondary, #e5e7eb)" },
-    text: { interactive: { secondary: "var(--ds-text-interactive-secondary, #4a5565)" } },
-    icon: { secondary: "var(--ds-icon-secondary, #364153)" },
+    text: {
+      interactive: { secondary: "var(--ds-text-interactive-secondary, #4a5565)" },
+      tertiary: "var(--ds-text-tertiary, #6a7282)",
+    },
+    icon: {
+      secondary: "var(--ds-icon-secondary, #364153)",
+      tertiary: "var(--ds-text-tertiary, #6a7282)",
+    },
   },
   font: {
-    family: "'Pretendard', sans-serif",
+    family: fontFamily.body,
     size: { md: 14 },
-    weight: { regular: 400, medium: 500 },
+    weight: { regular: fontWeight.regular, medium: fontWeight.medium },
     lineHeight: { md: "16px" },
   },
-  spacing: { 4: 4, 8: 8, 16: 16, 24: 24 },
-  border: { radius: { "3xl": 24 } },
+  spacing,
+  border: { radius: borderRadius },
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -82,7 +90,6 @@ function BreadcrumbDivider() {
         width: 24,
         height: 24,
         flexShrink: 0,
-        opacity: 0.7,
       }}
     >
       <span
@@ -90,7 +97,7 @@ function BreadcrumbDivider() {
           display: "block",
           width: 1,
           height: 16,
-          backgroundColor: tokens.color.icon.secondary,
+          backgroundColor: tokens.color.icon.tertiary,
           borderRadius: 16,
           transform: "rotate(30deg)",
           flexShrink: 0,
@@ -129,14 +136,13 @@ function BreadcrumbLink({
     display: "inline-flex",
     alignItems: "center",
     gap: tokens.spacing[4],
-    padding: `${tokens.spacing[4]}px ${tokens.spacing[8]}px`,
-    opacity: isCurrent ? 1 : 0.7,
+    padding: `${tokens.spacing[4]} ${tokens.spacing[8]}`,
     cursor: isClickable ? "pointer" : "default",
     borderRadius: 4,
     background: getBackground(),
     outline: showFocusRing && isClickable ? "2px solid var(--ds-border-interactive-primary, #2563eb)" : "none",
     outlineOffset: 1,
-    transition: "background 0.15s ease, outline 0.1s ease",
+    transition: "background 0.15s ease, outline 0.1s ease, color 0.15s ease",
     flexShrink: 0,
   };
 
@@ -147,7 +153,9 @@ function BreadcrumbLink({
       ? tokens.font.weight.medium
       : tokens.font.weight.regular,
     lineHeight: tokens.font.lineHeight.md,
-    color: tokens.color.text.interactive.secondary,
+    color: isCurrent
+      ? tokens.color.text.interactive.secondary
+      : tokens.color.text.tertiary,
     whiteSpace: "nowrap",
   };
 
@@ -299,7 +307,7 @@ export const GlobalNav: React.FC<GlobalNavProps> = ({
         justifyContent: "space-between",
         width: "100%",
         height,
-        padding: `0 ${tokens.spacing[24]}px`,
+        padding: `0 ${tokens.spacing[24]}`,
         backgroundColor: tokens.color.bg.primary,
         borderBottom: "none",
         boxSizing: "border-box",

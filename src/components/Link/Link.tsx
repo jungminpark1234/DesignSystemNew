@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { colorText } from "../../tokens/colors";
 import { fontFamily, fontWeight } from "../../tokens/typography";
+import { spacing, borderRadius } from "../../tokens/spacing";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -63,8 +64,8 @@ export const Link: React.FC<LinkProps> = ({
   const linkStyle_: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
-    gap: 4,
-    padding: "4px 8px",
+    gap: spacing[4],
+    padding: `${spacing[4]} ${spacing[8]}`,
     color,
     fontFamily: fontFamily.body,
     fontSize: 14,
@@ -75,7 +76,7 @@ export const Link: React.FC<LinkProps> = ({
     opacity: disabled ? 0.5 : 1,
     userSelect: "none",
     outline: "none",
-    borderRadius: 4,
+    borderRadius: borderRadius.md,
     transition: "color 0.15s ease",
     ...style,
   };
@@ -137,8 +138,7 @@ function SlashDivider() {
         width: 24,
         height: 24,
         flexShrink: 0,
-        opacity: 0.7,
-        color: colorText.secondary,
+        color: colorText.tertiary,
         fontSize: 16,
         lineHeight: 1,
         userSelect: "none",
@@ -188,8 +188,8 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 4,
-                    padding: "4px 8px",
+                    gap: spacing[4],
+                    padding: `${spacing[4]} ${spacing[8]}`,
                     fontFamily: fontFamily.body,
                     fontSize: 14,
                     fontWeight: fontWeight.medium,
@@ -207,9 +207,9 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                   {item.label}
                 </span>
               ) : (
-                // Ancestor — link, 70% opacity
+                // Ancestor — link, tertiary text color
                 <span
-                  style={{ opacity: 0.7, display: "inline-flex", alignItems: "center" }}
+                  style={{ display: "inline-flex", alignItems: "center" }}
                 >
                   <a
                     href={item.href}
@@ -217,19 +217,28 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 4,
-                      padding: "4px 8px",
+                      gap: spacing[4],
+                      padding: `${spacing[4]} ${spacing[8]}`,
                       fontFamily: fontFamily.body,
                       fontSize: 14,
                       fontWeight: fontWeight.regular,
                       lineHeight: "16px",
-                      color: colorText.interactive.secondary,
+                      color: colorText.tertiary,
                       textDecoration: "none",
                       whiteSpace: "nowrap",
                       cursor: "pointer",
+                      transition: "color 0.15s ease",
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}
+                    onMouseEnter={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.textDecoration = "underline";
+                      el.style.color = colorText.interactive.secondary;
+                    }}
+                    onMouseLeave={(e) => {
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.textDecoration = "none";
+                      el.style.color = colorText.tertiary;
+                    }}
                   >
                     {item.icon && (
                       <span style={{ display: "inline-flex", width: 20, height: 20 }}>

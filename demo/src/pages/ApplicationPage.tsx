@@ -20,6 +20,7 @@ import { PROJECT_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
 import { ListPage, PageTitle, PageDescription, DetailPage, DetailContentWithSidebar } from "../components/PageLayout";
 import { ApplicationMonitoringTab } from "./ApplicationMonitoringTab";
+import { SAMPLE_WORKLOADS } from "./ProjectMonitoringPage";
 import { DrawerShell, SecondaryButton, PrimaryButton } from "../components/DrawerShell";
 import { AirflowInstanceDetail, AirflowDeployDrawer } from "./AirflowDetail";
 import { CATALOG_README } from "../data/catalogReadme";
@@ -634,7 +635,10 @@ function DbInstanceDetail({ item, onBack, onDelete, onNavigate, projectName }: D
           </div>
 
           {detailTab === "monitoring" ? (
-            <ApplicationMonitoringTab appName={item.title} />
+            <ApplicationMonitoringTab
+              appName={item.title}
+              podCount={SAMPLE_WORKLOADS.find((w) => w.name === item.title)?.podCount}
+            />
           ) : (
           <DetailContentWithSidebar
             sidebar={
@@ -1322,9 +1326,13 @@ function CreateAppUnifiedDrawer({ open, onClose, selectedTemplate, onSelectTempl
 interface ApplicationPageProps {
   onNavigate?: (key: string) => void;
   projectName?: string;
+  /** Open this app's detail page on mount (matched by AppItem.title; falls back to first item if no match). */
+  initialAppName?: string;
+  /** Detail page tab to start on when initialAppName is supplied. */
+  initialDetailTab?: "overview" | "monitoring";
 }
 
-export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: ApplicationPageProps) {
+export function ApplicationPage({ onNavigate, projectName = "NLP Models", initialAppName, initialDetailTab }: ApplicationPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("application");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1364,6 +1372,16 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
     window.addEventListener("popstate", handler);
     return () => window.removeEventListener("popstate", handler);
   }, []);
+
+  // Deep-link: open detail (and target tab) when navigated from another page.
+  React.useEffect(() => {
+    if (!initialAppName) return;
+    const item = APP_ITEMS.find((i) => i.title === initialAppName) ?? APP_ITEMS[0];
+    if (!item) return;
+    setDetailItemRaw(item);
+    setDetailTab(initialDetailTab ?? "overview");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAppName]);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [templateSearch, setTemplateSearch] = useState("");
@@ -1466,7 +1484,10 @@ export function ApplicationPage({ onNavigate, projectName = "NLP Models" }: Appl
             </div>
 
             {detailTab === "monitoring" ? (
-              <ApplicationMonitoringTab appName={detailItem.title} />
+              <ApplicationMonitoringTab
+                appName={detailItem.title}
+                podCount={SAMPLE_WORKLOADS.find((w) => w.name === detailItem.title)?.podCount}
+              />
             ) : (
             <DetailContentWithSidebar
               sidebar={

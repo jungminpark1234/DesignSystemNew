@@ -8,12 +8,15 @@ import Icon from "../Icon/Icon";
 // Types
 // ──────────────────────────────────────────────────────────────────────────────
 export type ChipSize = "sm" | "md";
+export type ChipTone = "default" | "success" | "info";
 
 export interface ChipProps {
   /** Chip label text */
   label?: string;
   /** Chip size */
   size?: ChipSize;
+  /** Color tone — default (gray/runway), success (green), info (blue). Applied to bg/border/text. */
+  tone?: ChipTone;
   /** Whether the chip is selected */
   selected?: boolean;
   /** Whether to show a leading icon slot */
@@ -36,6 +39,7 @@ export interface ChipProps {
 export const Chip: React.FC<ChipProps> = ({
   label = "Label",
   size = "md",
+  tone = "default",
   selected: controlledSelected,
   leadingIcon,
   closable = false,
@@ -67,6 +71,33 @@ export const Chip: React.FC<ChipProps> = ({
     onClose?.();
   };
 
+  // Tone-aware colors. Selected state always uses runway by default; other tones override.
+  const toneColors = (() => {
+    if (tone === "success") {
+      return {
+        bg: colorBg.successSubtle,
+        border: colorBg.success,
+        text: colorText.success,
+        icon: colorIcon.success,
+      };
+    }
+    if (tone === "info") {
+      return {
+        bg: colorBg.infoSubtle,
+        border: colorBg.info,
+        text: colorText.info,
+        icon: colorIcon.info,
+      };
+    }
+    // default tone — gray/runway
+    return {
+      bg: selected ? colorBg.interactive.runwaySelected : colorBg.secondary,
+      border: selected ? colorBorder.interactive.runwayPrimary : colorBorder.secondary,
+      text: selected ? colorText.interactive.runwayPrimary : colorText.interactive.secondary,
+      icon: selected ? colorIcon.interactive.runwayPrimary : colorIcon.secondary,
+    };
+  })();
+
   const chipStyle: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -74,9 +105,9 @@ export const Chip: React.FC<ChipProps> = ({
     height,
     padding: `4px ${paddingX}px`,
     borderRadius: borderRadius.rounded,
-    border: `1px solid ${selected ? colorBorder.interactive.runwayPrimary : colorBorder.secondary}`,
-    backgroundColor: selected ? colorBg.interactive.runwaySelected : colorBg.secondary,
-    color: selected ? colorText.interactive.runwayPrimary : colorText.interactive.secondary,
+    border: `1px solid ${toneColors.border}`,
+    backgroundColor: toneColors.bg,
+    color: toneColors.text,
     fontFamily: fontFamily.body,
     fontSize,
     fontWeight: fontWeight.regular,
@@ -107,7 +138,7 @@ export const Chip: React.FC<ChipProps> = ({
             justifyContent: "center",
             width: size === "md" ? 20 : 16,
             height: size === "md" ? 20 : 16,
-            color: selected ? colorIcon.interactive.runwayPrimary : colorIcon.secondary,
+            color: toneColors.icon,
             flexShrink: 0,
           }}
         >
@@ -124,7 +155,7 @@ export const Chip: React.FC<ChipProps> = ({
             justifyContent: "center",
             width: size === "md" ? 20 : 16,
             height: size === "md" ? 20 : 16,
-            color: selected ? colorIcon.interactive.runwayPrimary : colorIcon.secondary,
+            color: toneColors.icon,
             flexShrink: 0,
             cursor: disabled ? "not-allowed" : "pointer",
           }}
@@ -133,7 +164,7 @@ export const Chip: React.FC<ChipProps> = ({
           tabIndex={disabled ? -1 : 0}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleClose(e as any); }}
         >
-          <Icon name="xonly" size={size === "md" ? 16 : 14} color={selected ? colorIcon.interactive.runwayPrimary : colorIcon.secondary} />
+          <Icon name="xonly" size={size === "md" ? 16 : 14} color={toneColors.icon} />
         </span>
       )}
     </button>

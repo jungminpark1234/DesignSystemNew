@@ -8,8 +8,10 @@ import Icon from "../Icon/Icon";
 export interface CopyButtonProps {
   /** Text to copy to clipboard */
   text: string;
-  /** Icon size (default 24) */
+  /** Button size (default 24) */
   size?: number;
+  /** Inner icon size override. Defaults to ~67% of `size`. */
+  iconSize?: number;
   /** Duration in ms to show the check icon after copying (default 1500) */
   feedbackDuration?: number;
   /** Custom icon color (default icon.secondary) */
@@ -24,11 +26,13 @@ export interface CopyButtonProps {
 export const CopyButton: React.FC<CopyButtonProps> = ({
   text,
   size = 24,
+  iconSize,
   feedbackDuration = 1500,
   color,
   className,
   style,
 }) => {
+  const innerSize = iconSize ?? Math.round(size * 0.667);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -100,12 +104,12 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
       }}
     >
       {copied ? (
-        <svg width={Math.round(size * 0.833)} height={Math.round(size * 0.833)} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width={innerSize} height={innerSize} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="12" cy="12" r="10" fill="#00A63E"/>
           <path d="M8.66669 12L10.5774 13.9108C10.9029 14.2362 11.4305 14.2362 11.7559 13.9108L15.3334 10.3334" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       ) : (
-        <Icon name="copy" size={size} color={getIconColor()} />
+        <Icon name="copy" size={innerSize} color={getIconColor()} />
       )}
     </button>
   );

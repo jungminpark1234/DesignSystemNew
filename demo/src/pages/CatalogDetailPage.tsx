@@ -316,10 +316,14 @@ export function CatalogDetailPage({ item, onBack, onNavigate, projectName = "NLP
               setTimeout(() => setPgDrawerOpen(true), 200);
             }}
           />
-          {/* PostgreSQL 생성 Drawer */}
+          {/* PostgreSQL 생성 Drawer — cancel 시 Airflow drawer로 복귀 (입력 취소가 부모 흐름을 끊지 않도록) */}
           <CreateAppDrawer
             open={pgDrawerOpen}
-            onClose={() => { setPgDrawerOpen(false); setPgInitialName(undefined); }}
+            onClose={() => {
+              setPgDrawerOpen(false);
+              setPgInitialName(undefined);
+              setTimeout(() => setDrawerOpen(true), 200);
+            }}
             initialName={pgInitialName}
             onCreate={({ name, id }) => {
               // PG 생성 성공 시 — 실제 입력한 이름/ID로 저장

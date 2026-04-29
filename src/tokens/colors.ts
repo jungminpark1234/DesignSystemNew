@@ -149,6 +149,7 @@ export const colorBg = {
   primary: "#ffffff",
   secondary: "#f9fafb",
   tertiary: "#f3f4f6",
+  tertiaryHovered: "#eeeff2",
   neutral: "#d1d5dc",
   runway: "#155dfc",
   drawx: "#4f39f6",

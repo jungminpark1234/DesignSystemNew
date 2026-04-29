@@ -8,7 +8,6 @@ import type { SidebarNavItem } from "@ds/components/Sidebar";
 import { AppGnb } from "../components/AppGnb";
 import { SecondaryButton } from "../components/DrawerShell";
 import { ResourceGuideModal } from "../components/ResourceGuideModal";
-import { WorkloadsTable, SAMPLE_WORKLOADS } from "./ProjectMonitoringPage";
 import {
   AllocationCard,
   METRICS,
@@ -20,11 +19,27 @@ import {
   TimeRange,
   TimeRangeRow,
   TrendChart,
+  WorkloadStats,
   formatNow,
   isoLocalNow,
 } from "./AdminMonitoringPage";
 
 const ff = "'Pretendard', sans-serif";
+
+// ─── Per-workspace workload aggregates (mock) ────────────────────────────────
+// Idle = workloads using <10% of allocated resources. Surfaced for capacity reclaim.
+const WORKSPACE_WORKLOAD_STATS: Record<string, WorkloadStats> = {
+  "Aurora DB":     { total: 12, avgUtil: "68%", idle: 1 },
+  "Cassandra":     { total: 18, avgUtil: "71%", idle: 0 },
+  "Athena Query":  { total:  4, avgUtil: "12%", idle: 3 },
+  "BigQuery":      { total: 22, avgUtil: "67%", idle: 2 },
+  "DynamoDB":      { total:  8, avgUtil: "28%", idle: 4 },
+  "ElasticSearch": { total: 14, avgUtil: "33%", idle: 5 },
+  "HBase":         { total: 11, avgUtil: "55%", idle: 1 },
+  "Kafka":         { total:  9, avgUtil: "48%", idle: 0 },
+  "Kinesis":       { total:  6, avgUtil: "20%", idle: 2 },
+  "MongoDB":       { total: 26, avgUtil: "82%", idle: 0 },
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Runway Admin sidebar (different from Workspace LNB)
@@ -152,7 +167,6 @@ export function RunwayAdminMonitoringPage({ onNavigate }: RunwayAdminMonitoringP
   const [scrolled, setScrolled] = useState(false);
   const [nodeDetailsOpen, setNodeDetailsOpen] = useState(false);
   const [workspaceQuery, setWorkspaceQuery] = useState("");
-  const [workloadQuery, setWorkloadQuery] = useState("");
   const [customFrom, setCustomFrom] = useState(() => isoLocalNow(-7));
   const [customTo, setCustomTo] = useState(() => isoLocalNow(0));
 
@@ -172,7 +186,6 @@ export function RunwayAdminMonitoringPage({ onNavigate }: RunwayAdminMonitoringP
         hideTabs
         standalone
       />
-
       <Sidebar
         items={RUNWAY_ADMIN_NAV}
         selectedKey={selectedNav}
@@ -337,33 +350,9 @@ export function RunwayAdminMonitoringPage({ onNavigate }: RunwayAdminMonitoringP
                 rows={PROJECTS}
                 query={workspaceQuery}
                 leftHeader="workspace"
+                workloadStats={WORKSPACE_WORKLOAD_STATS}
                 onRowClick={() => {}}
               />
-
-              {/* 워크로드별 자원 사용 현황 — 클러스터 단위 (어느 워크스페이스/프로젝트의 워크로드인지 표시) */}
-              <div style={{ marginTop: 32 }}>
-                <SectionTitle
-                  title="워크로드별 자원 사용 현황"
-                  hint={"클러스터 내 모든 워크스페이스/프로젝트의 워크로드 자원 할당/사용 현황입니다.\n• 워크스페이스, 프로젝트 컬럼으로 워크로드 출처를 식별\n• 할당됨 / 사용됨 정렬 + 저사용 (10% 미만) 주황색 강조"}
-                />
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
-                  <div style={{ maxWidth: 280, flex: 1 }}>
-                    <TextField
-                      value={workloadQuery}
-                      onChange={(e) => setWorkloadQuery(e.target.value)}
-                      placeholder="워크로드 이름 검색..."
-                      leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
-                    />
-                  </div>
-                </div>
-                <WorkloadsTable
-                  workloads={SAMPLE_WORKLOADS}
-                  query={workloadQuery}
-                  showWorkspace
-                  showProject
-                  onRowClick={() => {}}
-                />
-              </div>
             </>
           )}
         </div>

@@ -1,16 +1,20 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@ds/components/Sidebar";
 import { Icon } from "@ds/components/Icon";
+import { IconButton } from "@ds/components/IconButton";
 import { Tabs } from "@ds/components/Tabs";
 import { TextField } from "@ds/components/TextField";
 import { TextArea } from "@ds/components/TextArea";
 import { Select } from "@ds/components/Select";
 import { StatusChip } from "@ds/components/StatusChip";
+import { Chip } from "@ds/components/Chip";
+import { Checkbox } from "@ds/components/Checkbox";
 import { Switch } from "@ds/components/Switch";
 import { Radio } from "@ds/components/Radio";
 import { CopyButton } from "@ds/components/CopyButton";
 import { Avatar, getAvatarColorFromInitial } from "@ds/components/Avatar";
 import { Alert } from "@ds/components/Alert";
+import { Tooltip } from "@ds/components/Tooltip";
 import { useTheme } from "../theme";
 import { PROJECT_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
@@ -31,6 +35,7 @@ import { ApplicationMonitoringTab } from "./ApplicationMonitoringTab";
 import { PaginationBar } from "./DataConnectionsPage";
 import logoTriton from "@ds/icons/catalog/triton.svg";
 import logoMlserver from "@ds/icons/catalog/mlserver.svg";
+import logoProtobuf from "@ds/icons/platform/protobuf.svg";
 
 const ff = "'Pretendard', sans-serif";
 
@@ -103,20 +108,25 @@ interface ModelDeployment {
   createdAt: string;
   creator: string;
   creatorInitial: string;
+  /** Mock fields for topology view */
+  replicas?: number;
+  deploymentNumber?: number;
+  trafficWeight?: number;
+  autoScaling?: { min: number; max: number };
 }
 
 const SAMPLE_DEPLOYMENTS: Record<string, ModelDeployment[]> = {
   "ml-classifier-service": [
-    { id: "d1", name: "ML Classifier Service",  deployed: true,  weight: 70, effective: 75, createdAt: "2024-10-07 15:31:53", creator: "Jungmin Park", creatorInitial: "JP" },
-    { id: "d2", name: "Degraded Service API",   deployed: false, weight: 20, effective: 25, createdAt: "2024-10-07 14:37:26", creator: "Jungmin Park", creatorInitial: "JP" },
-    { id: "d3", name: "Multi-Model Vision API", deployed: false, weight: 10, effective: 0,  createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP" },
+    { id: "d1", name: "classifier-v1",  deployed: true, weight: 70, effective: 70, createdAt: "2024-10-07 15:31:53", creator: "Jungmin Park", creatorInitial: "JP", replicas: 2, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 10 } },
+    { id: "d2", name: "classifier-v2",  deployed: true, weight: 20, effective: 20, createdAt: "2024-10-07 14:37:26", creator: "Jungmin Park", creatorInitial: "JP", replicas: 1, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 10 } },
+    { id: "d3", name: "classifier-canary", deployed: true, weight: 10, effective: 10, createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP", replicas: 1, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 10 } },
   ],
   "degraded-service-api": [
-    { id: "d4", name: "tagger-v1", deployed: true, weight: 100, effective: 100, createdAt: "2024-10-07 14:37:26", creator: "Jungmin Park", creatorInitial: "JP" },
+    { id: "d4", name: "tagger-v1", deployed: true, weight: 100, effective: 100, createdAt: "2024-10-07 14:37:26", creator: "Jungmin Park", creatorInitial: "JP", replicas: 2, deploymentNumber: 91, trafficWeight: 1, autoScaling: { min: 1, max: 5 } },
   ],
   "multi-model-vision": [
-    { id: "d5", name: "detector-base",  deployed: true, weight: 60, effective: 60, createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP" },
-    { id: "d6", name: "detector-small", deployed: true, weight: 40, effective: 40, createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP" },
+    { id: "d5", name: "detector-base",  deployed: true, weight: 60, effective: 60, createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP", replicas: 2, deploymentNumber: 88, trafficWeight: 1, autoScaling: { min: 2, max: 8 } },
+    { id: "d6", name: "detector-small", deployed: true, weight: 40, effective: 40, createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP", replicas: 1, deploymentNumber: 88, trafficWeight: 1, autoScaling: { min: 1, max: 4 } },
   ],
   "empty-endpoint-no-models": [],
 };
@@ -369,16 +379,17 @@ function EndpointListView({
 // Endpoint detail page
 // ═══════════════════════════════════════════════════════════════════════════════
 function EndpointDetailView({
-  endpoint, onBack, onDeployModel, onEditTraffic,
+  endpoint, onDeployModel, onEditTraffic, initialDetailTab,
 }: {
-  endpoint: InferenceEndpoint; onBack: () => void; onDeployModel: () => void; onEditTraffic?: () => void;
+  endpoint: InferenceEndpoint; onDeployModel: () => void; onEditTraffic?: () => void; initialDetailTab?: "overview" | "monitoring";
 }) {
   const { colors } = useTheme();
   const deployments = SAMPLE_DEPLOYMENTS[endpoint.id] ?? [];
   const [query, setQuery] = useState("");
   const [deployedFilter, setDeployedFilter] = useState<"all" | "deployed" | "undeployed">("all");
-  const [detailTab, setDetailTab] = useState<"overview" | "monitoring">("overview");
-  const [monitoringDeployment, setMonitoringDeployment] = useState<string>(deployments[0]?.id ?? "all");
+  const [detailTab, setDetailTab] = useState<"overview" | "monitoring">(initialDetailTab ?? "overview");
+  const [deploymentView, setDeploymentView] = useState<"topology" | "table">("table");
+  const [monitoringDeployment, setMonitoringDeployment] = useState<string>("all");
   const filtered = deployments.filter((d) => {
     if (!d.name.toLowerCase().includes(query.toLowerCase())) return false;
     if (deployedFilter === "deployed" && !d.deployed) return false;
@@ -407,7 +418,6 @@ function EndpointDetailView({
           )}
         </div>
       }
-      onBack={onBack}
       actions={
         <>
           <SecondaryButton
@@ -435,21 +445,36 @@ function EndpointDetailView({
         />
       </div>
 
-      {detailTab === "monitoring" ? (
-        <ApplicationMonitoringTab
-          appName={endpoint.name}
-          scopeSelector={{
-            label: "범위",
-            value: monitoringDeployment,
-            onChange: setMonitoringDeployment,
-            options: [
-              { value: "all",      label: `전체 (Endpoint + ${deployments.length} deployments)` },
-              { value: "endpoint", label: "Endpoint 자원만 (router/ingress)" },
-              ...deployments.map((d) => ({ value: d.id, label: `Deployment · ${d.name}` })),
-            ],
-          }}
-        />
-      ) : (
+      {detailTab === "monitoring" ? (() => {
+        // Show all configured deployments in the scope dropdown (matches Model Deployments table count),
+        // but resources/pods only come from deployed=true entries.
+        const deployedDeployments = deployments.filter((d) => d.deployed);
+        const totalDeployedPods = deployedDeployments
+          .reduce((sum, d) => sum + Math.max(1, d.replicas ?? 1), 0);
+        const selectedDeployment = deployedDeployments.find((d) => d.id === monitoringDeployment);
+        const monitoringPodCount =
+          monitoringDeployment === "all" ? totalDeployedPods :
+          selectedDeployment              ? Math.max(1, selectedDeployment.replicas ?? 1) :
+          0;
+        return (
+          <ApplicationMonitoringTab
+            appName={endpoint.name}
+            podCount={monitoringPodCount}
+            scopeSelector={{
+              label: "범위",
+              value: monitoringDeployment,
+              onChange: setMonitoringDeployment,
+              options: [
+                { value: "all", label: `전체 (${deployedDeployments.length} deployments)` },
+                ...deployedDeployments.map((d) => ({
+                  value: d.id,
+                  label: `Deployment · ${d.name}`,
+                })),
+              ],
+            }}
+          />
+        );
+      })() : (
       <DetailContentWithSidebar
         sidebar={
           <>
@@ -468,13 +493,33 @@ function EndpointDetailView({
                   <span style={{ fontFamily: "'Roboto Mono', monospace", fontSize: 11, wordBreak: "break-all", color: colors.text.secondary, flex: 1, minWidth: 0, lineHeight: "16px" }}>
                     {endpoint.inferenceUrl}
                   </span>
-                  <CopyButton text={endpoint.inferenceUrl} size={20} />
+                  <CopyButton text={endpoint.inferenceUrl} size={24} iconSize={20} />
+                </div>
+              </InfoRow>
+              <InfoRow label="gRPC endpoint Address">
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: 4,
+                  padding: 8, borderRadius: 6,
+                  backgroundColor: colors.bg.secondary,
+                  border: `1px solid ${colors.border.tertiary}`,
+                }}>
+                  <span style={{ fontFamily: "'Roboto Mono', monospace", fontSize: 11, wordBreak: "break-all", color: colors.text.secondary, flex: 1, minWidth: 0, lineHeight: "16px" }}>
+                    grpc.inference.example.com:443
+                  </span>
+                  <CopyButton text="grpc.inference.example.com:443" size={24} iconSize={20} />
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <SecondaryButton
+                    label="OIP v2 Proto 다운로드"
+                    onClick={() => {}}
+                    icon={<img src={logoProtobuf} alt="" width={16} height={16} aria-hidden="true" />}
+                  />
                 </div>
               </InfoRow>
               <InfoRow label="상태">
                 <StatusChip state={st.state} size="sm" label={st.label} />
               </InfoRow>
-              <InfoRow label="Model Deployments">{endpoint.deployments}</InfoRow>
+              <InfoRow label="Model Deployments">{deployments.length}</InfoRow>
               <InfoRow label="Serving Runtime"><RuntimeBadge runtime={endpoint.runtime} /></InfoRow>
               <InfoRow label="Created By">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -487,35 +532,86 @@ function EndpointDetailView({
           </>
         }
       >
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
-          Model Deployments
-        </h2>
+        <div style={{ marginTop: 8 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
+            Model Deployments
+          </h2>
+        </div>
 
-        {/* Search + Deployed filter */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ width: 280 }}>
-            <TextField
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search..."
-              leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
-            />
+        {/* Search + Deployed filter on the left, view toggle on the right */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", visibility: deploymentView === "table" ? "visible" : "hidden" }}>
+            <div style={{ width: 280 }}>
+              <TextField
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search..."
+                leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
+              />
+            </div>
+            <div style={{ width: 160 }}>
+              <Select
+                options={[
+                  { value: "all",        label: "Deployed" },
+                  { value: "deployed",   label: "Deployed only" },
+                  { value: "undeployed", label: "Undeployed only" },
+                ]}
+                value={deployedFilter}
+                onChange={(v) => setDeployedFilter(v as typeof deployedFilter)}
+              />
+            </div>
           </div>
-          <div style={{ width: 160 }}>
-            <Select
-              options={[
-                { value: "all",        label: "Deployed" },
-                { value: "deployed",   label: "Deployed only" },
-                { value: "undeployed", label: "Undeployed only" },
-              ]}
-              value={deployedFilter}
-              onChange={(v) => setDeployedFilter(v as typeof deployedFilter)}
-            />
+          <div style={{ display: "flex", gap: 8 }}>
+            {([
+              { key: "table",    icon: "table" as const,   label: "Table view" },
+              { key: "topology", icon: "Traffic" as const, label: "Topology view" },
+            ] as const).map(({ key, icon, label }) => (
+              <Tooltip key={key} content={label} direction="below-center">
+                <IconButton
+                  buttonType="outlined"
+                  theme="runway"
+                  selected={deploymentView === key}
+                  onClick={() => setDeploymentView(key)}
+                  aria-label={label}
+                  aria-pressed={deploymentView === key}
+                  icon={<Icon name={icon} size={20} color="currentColor" />}
+                />
+              </Tooltip>
+            ))}
           </div>
         </div>
 
-        {/* Deployments table or empty */}
-        {filtered.length === 0 ? (
+        {/* Topology view */}
+        {deploymentView === "topology" && (
+          deployments.length === 0 ? (
+            <div
+              style={{
+                border: `1px solid ${colors.border.tertiary}`,
+                borderRadius: 12,
+                backgroundColor: colors.bg.secondary,
+                padding: 60,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+              }}
+            >
+              <div style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.bg.tertiary, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="inference_endpoint" size={24} color={colors.icon.secondary} />
+              </div>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>
+                  No models deployed
+                </span>
+                <span style={{ fontSize: 13, color: colors.text.tertiary, fontFamily: ff }}>
+                  This endpoint has no deployed models yet. Deploy your first model to start serving inference requests.
+                </span>
+              </div>
+            </div>
+          ) : (
+            <TopologyView endpoint={endpoint} deployments={deployments} />
+          )
+        )}
+
+        {/* Table view */}
+        {deploymentView === "table" && (filtered.length === 0 ? (
           <div
             style={{
               border: `1px solid ${colors.border.tertiary}`,
@@ -592,11 +688,487 @@ function EndpointDetailView({
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </DetailContentWithSidebar>
       )}
     </DetailPage>
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Topology view — Client → REST API → Deployments → Pods
+// ═══════════════════════════════════════════════════════════════════════════════
+function TopologyView({ endpoint, deployments }: { endpoint: InferenceEndpoint; deployments: ModelDeployment[] }) {
+  const { colors } = useTheme();
+  const activeColor = colors.bg.interactive.runwayPrimary;
+  const idleColor   = colors.border.secondary;
+  const anyActive   = deployments.some((d) => d.effective > 0);
+
+  return (
+    <div
+      style={{
+        padding: "32px 24px",
+        backgroundColor: colors.bg.secondary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 0,
+        overflow: "auto",
+      }}
+    >
+      {/* Local keyframes for the flowing dash animation */}
+      <style>{`
+        @keyframes topology-flow-v { from { background-position-y: 0; } to { background-position-y: 8px; } }
+        @keyframes topology-flow-h { from { background-position-x: 0; } to { background-position-x: 8px; } }
+      `}</style>
+
+      <ClientNode />
+      <FlowLineV height={28} active={anyActive} activeColor={activeColor} idleColor={idleColor} />
+
+      {/* REST API + Inference logging */}
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "center", flexWrap: "wrap" }}>
+        <RestApiCard url={endpoint.inferenceUrl} runtime={endpoint.runtime} />
+        <InferenceLoggingCard />
+      </div>
+
+      <FlowLineV height={28} active={anyActive} activeColor={activeColor} idleColor={idleColor} />
+
+      {/* Branch L-shapes — each deployment has its own (horizontal segment + vertical drop) colored per its effective traffic */}
+      <BranchLayer deployments={deployments} activeColor={activeColor} idleColor={idleColor} />
+
+      {/* Deployment cards */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${deployments.length}, minmax(280px, 1fr))`,
+          gap: 16,
+          width: "100%",
+          marginTop: -1,
+        }}
+      >
+        {deployments.map((d) => (
+          <DeploymentNode key={d.id} deployment={d} runtime={endpoint.runtime} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Branch L-shapes — one per deployment. Each branch carries the deployment's color
+// from the trunk center all the way down to the card, so 0% deployments are gray
+// from the very start of the path (no blue→gray discontinuity).
+function BranchLayer({
+  deployments,
+  activeColor,
+  idleColor,
+}: {
+  deployments: ModelDeployment[];
+  activeColor: string;
+  idleColor: string;
+}) {
+  if (deployments.length === 0) return null;
+  const verticalDropHeight = 20;
+  const horizontalBandHeight = 2;
+  const containerHeight = verticalDropHeight + horizontalBandHeight;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: containerHeight,
+      }}
+      aria-hidden="true"
+    >
+      {deployments.map((d, i) => {
+        const colCenterPct   = ((i + 0.5) / deployments.length) * 100;
+        const trunkCenterPct = 50;
+        const isCenter = Math.abs(colCenterPct - trunkCenterPct) < 0.001;
+        const active = d.effective > 0;
+        const color = active ? activeColor : idleColor;
+
+        const leftPct  = Math.min(colCenterPct, trunkCenterPct);
+        const rightPct = 100 - Math.max(colCenterPct, trunkCenterPct);
+
+        return (
+          <React.Fragment key={d.id}>
+            {/* Horizontal segment (from trunk center to this column's center) */}
+            {!isCenter && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: `${leftPct}%`,
+                  right: `${rightPct}%`,
+                  top: 0,
+                  height: horizontalBandHeight,
+                  backgroundImage: `linear-gradient(to right, ${color} 50%, transparent 50%)`,
+                  backgroundSize: "8px 2px",
+                  backgroundRepeat: "repeat-x",
+                  animation: active ? "topology-flow-h 0.8s linear infinite" : undefined,
+                }}
+              />
+            )}
+            {/* Vertical drop at this column's center */}
+            <div
+              style={{
+                position: "absolute",
+                left: `calc(${colCenterPct}% - 1px)`,
+                top: 0,
+                width: 2,
+                height: containerHeight,
+                backgroundImage: `linear-gradient(to bottom, ${color} 50%, transparent 50%)`,
+                backgroundSize: "2px 8px",
+                backgroundRepeat: "repeat-y",
+                animation: active ? "topology-flow-v 0.8s linear infinite" : undefined,
+              }}
+            />
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// Animated dashed connector — vertical (CSS background-image dash flow)
+function FlowLineV({
+  height,
+  active,
+  activeColor,
+  idleColor,
+}: {
+  height: number;
+  active: boolean;
+  activeColor: string;
+  idleColor: string;
+}) {
+  const color = active ? activeColor : idleColor;
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "block",
+        width: 2,
+        height,
+        backgroundImage: `linear-gradient(to bottom, ${color} 50%, transparent 50%)`,
+        backgroundSize: "2px 8px",
+        backgroundRepeat: "repeat-y",
+        animation: active ? "topology-flow-v 0.8s linear infinite" : undefined,
+      }}
+    />
+  );
+}
+
+// Animated dashed connector — horizontal (CSS background-image dash flow)
+function FlowLineH({
+  width,
+  maxWidth,
+  active,
+  activeColor,
+  idleColor,
+}: {
+  width: string;
+  maxWidth?: number;
+  active: boolean;
+  activeColor: string;
+  idleColor: string;
+}) {
+  const color = active ? activeColor : idleColor;
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "block",
+        width,
+        maxWidth,
+        height: 2,
+        backgroundImage: `linear-gradient(to right, ${color} 50%, transparent 50%)`,
+        backgroundSize: "8px 2px",
+        backgroundRepeat: "repeat-x",
+        animation: active ? "topology-flow-h 0.8s linear infinite" : undefined,
+      }}
+    />
+  );
+}
+
+function ClientNode() {
+  const { colors } = useTheme();
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+        padding: "12px 20px",
+        backgroundColor: "#dbeafe",
+        border: `1px solid #bfdbfe`,
+        borderRadius: 12,
+        minWidth: 96,
+      }}
+    >
+      <Icon name="user" size={24} color="#1e40af" />
+      <span style={{ fontSize: 12, fontWeight: 600, color: "#1e3a8a", fontFamily: ff }}>Client</span>
+    </div>
+  );
+}
+
+function RestApiCard({ url, runtime }: { url: string; runtime: ServingRuntime }) {
+  const { colors } = useTheme();
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", gap: 8,
+        padding: 16,
+        backgroundColor: colors.bg.primary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+        minWidth: 320, maxWidth: 480,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 24, height: 24, borderRadius: 6,
+          backgroundColor: "#dbeafe",
+        }}>
+          <Icon name="inference_endpoint" size={16} color="#1d4ed8" />
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>Rest API</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 4 }}>
+          <img src={RUNTIME_MAP[runtime].logo} alt="" style={{ width: 14, height: 14, objectFit: "contain", flexShrink: 0 }} />
+          <span style={{ fontSize: 11, color: colors.text.tertiary, fontFamily: ff }}>{RUNTIME_MAP[runtime].label}</span>
+        </span>
+      </div>
+      <div
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "6px 8px",
+          backgroundColor: colors.bg.secondary,
+          border: `1px solid ${colors.border.tertiary}`,
+          borderRadius: 6,
+          minWidth: 0,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "'Roboto Mono', monospace",
+            fontSize: 11,
+            color: colors.text.secondary,
+            flex: 1, minWidth: 0, lineHeight: "16px",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {url}
+        </span>
+        <CopyButton text={url} size={16} />
+      </div>
+    </div>
+  );
+}
+
+function InferenceLoggingCard() {
+  const { colors } = useTheme();
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", gap: 8,
+        padding: 16,
+        backgroundColor: colors.bg.primary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+        minWidth: 240,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 24, height: 24, borderRadius: 6,
+          backgroundColor: "#dbeafe",
+        }}>
+          <Icon name="storage" size={16} color="#1d4ed8" />
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>Inference logging</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontFamily: ff }}>
+        <span style={{ color: colors.text.tertiary }}>Location</span>
+        <span style={{ color: colors.text.interactive.runwayPrimary, fontWeight: 500 }}>MINIO</span>
+      </div>
+    </div>
+  );
+}
+
+function DeploymentNode({ deployment, runtime: _runtime }: { deployment: ModelDeployment; runtime: ServingRuntime }) {
+  const { colors } = useTheme();
+  const replicas = deployment.replicas ?? 1;
+  // Only render running pod cards when the deployment is actually deployed.
+  const podCount = deployment.deployed ? Math.max(1, replicas) : 0;
+  const trafficPct = deployment.effective;
+  const trafficWeight = deployment.trafficWeight ?? 1;
+  const deploymentNumber = deployment.deploymentNumber ?? 0;
+  const auto = deployment.autoScaling ?? { min: 1, max: 10 };
+
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", gap: 12,
+        padding: 16,
+        backgroundColor: colors.bg.primary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{
+            width: 24, height: 24, borderRadius: 6,
+            backgroundColor: "#dbeafe",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <Icon name="deploy" size={14} color="#1d4ed8" />
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, fontFamily: ff, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {deployment.name}
+          </span>
+          <span style={{ fontSize: 11, color: colors.text.tertiary, fontFamily: ff, whiteSpace: "nowrap" }}>
+            ({replicas} replica{replicas !== 1 ? "s" : ""})
+          </span>
+        </div>
+        {deployment.deployed && (
+          <Tooltip content="GPU 활성화" direction="above-center">
+            <span style={{
+              width: 24, height: 24, borderRadius: 6,
+              backgroundColor: "#dcfce7",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}>
+              <Icon name="gpu" size={14} color="#15803d" />
+            </span>
+          </Tooltip>
+        )}
+      </div>
+
+      {/* Meta */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, fontFamily: ff }}>
+        <MetaItem label="Deployment ID" value={String(deploymentNumber)} />
+        <MetaItem label="Traffic" value={`${trafficPct}%`} hint={`(Traffic weight:${trafficWeight})`} />
+      </div>
+
+      {/* Pods — auto-scaled replicas. Stack vertically by default; opt into 2-up only when card is wide enough */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>
+        {Array.from({ length: podCount }).map((_, i) => (
+          <PodCard
+            key={i}
+            podId={`pod-${randomPodId(deployment.id, i)}`}
+            running={deployment.deployed}
+            trafficDistribution={Math.round(trafficPct / podCount)}
+            trafficWeight={trafficWeight}
+            auto={auto}
+          />
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingTop: 8, borderTop: `1px solid ${colors.border.tertiary}` }}>
+        <button
+          type="button"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            padding: "4px 8px",
+            border: `1px solid ${colors.border.secondary}`,
+            borderRadius: 6,
+            backgroundColor: colors.bg.primary,
+            cursor: "pointer",
+            fontFamily: ff, fontSize: 12, fontWeight: 500,
+            color: colors.text.secondary,
+          }}
+        >
+          <Icon name="undeploy" size={12} color={colors.icon.secondary} />
+          Stop
+        </button>
+        <button
+          type="button"
+          aria-label="More actions"
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 28, height: 28,
+            border: "none", borderRadius: 6,
+            backgroundColor: "transparent", cursor: "pointer",
+          }}
+        >
+          <Icon name="more-vertical" size={16} color={colors.icon.secondary} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PodCard({ podId, running, trafficDistribution, trafficWeight, auto }: {
+  podId: string; running: boolean; trafficDistribution: number; trafficWeight: number; auto: { min: number; max: number };
+}) {
+  const { colors } = useTheme();
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", gap: 6,
+        padding: 10,
+        backgroundColor: colors.bg.secondary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 8,
+      }}
+    >
+      <span style={{ fontFamily: "'Roboto Mono', monospace", fontSize: 11, color: colors.text.secondary }}>{podId}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontFamily: ff }}>
+        <PodMetaRow label="Status" value={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: 9999,
+              backgroundColor: running ? colors.bg.success : colors.bg.tertiary,
+            }} />
+            <span style={{ color: running ? colors.text.success : colors.text.tertiary }}>
+              {running ? "Running" : "Stopped"}
+            </span>
+          </span>
+        } />
+        <PodMetaRow label="Traffic distribution" value={`${trafficDistribution}%`} hint={`(Traffic weight:${trafficWeight})`} />
+        <PodMetaRow label="Auto scaling" value={String(auto.min)} hint={`(min:${auto.min}~max:${auto.max})`} />
+      </div>
+    </div>
+  );
+}
+
+function MetaItem({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+  const { colors } = useTheme();
+  return (
+    <div style={{ display: "inline-flex", alignItems: "baseline", gap: 4 }}>
+      <span style={{ color: colors.text.tertiary }}>{label}</span>
+      <span style={{ color: colors.text.primary, fontWeight: 500 }}>{value}</span>
+      {hint && <span style={{ color: colors.text.tertiary }}>{hint}</span>}
+    </div>
+  );
+}
+
+function PodMetaRow({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+  const { colors } = useTheme();
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+      <span style={{ color: colors.text.tertiary, minWidth: 88 }}>{label}</span>
+      <span style={{ color: colors.text.primary, fontWeight: 500 }}>{value}</span>
+      {hint && <span style={{ color: colors.text.tertiary }}>{hint}</span>}
+    </div>
+  );
+}
+
+function randomPodId(seed: string, i: number) {
+  let h = 5381;
+  const s = `${seed}-${i}`;
+  for (let k = 0; k < s.length; k++) h = ((h << 5) + h + s.charCodeAt(k)) >>> 0;
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  let n = h;
+  for (let k = 0; k < 7; k++) { id += chars[n % chars.length]; n = Math.floor(n / chars.length); }
+  return id;
 }
 
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
@@ -610,7 +1182,541 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Access Endpoints — REST + gRPC transports for the same model.
+// Two transport interfaces, two routing models:
+//   • REST: path-based routing
+//   • gRPC: metadata-header routing
+// ═══════════════════════════════════════════════════════════════════════════════
+function AccessEndpointsSection({ endpoint }: { endpoint: InferenceEndpoint }) {
+  const { colors } = useTheme();
+  const grpcAddress = "grpc.inference.example.com:443";
+  const grpcModel = endpoint.inferenceUrl
+    .replace("https://inference.example.com/", "")
+    .replace("/v2/models/default/infer", "/default");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "32px" }}>
+            Access Endpoints
+          </h2>
+          <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>
+            Available Transports (2) · REST · gRPC · same model, two transport interfaces
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16 }}>
+        <RestEndpointCard url={endpoint.inferenceUrl} />
+        <GrpcEndpointCard address={grpcAddress} modelMetadata={grpcModel} />
+      </div>
+    </div>
+  );
+}
+
+function CapabilityBadge({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "info" | "success" }) {
+  const { colors } = useTheme();
+  const map = {
+    neutral: { bg: colors.bg.tertiary,      fg: colors.text.secondary, br: colors.border.tertiary },
+    info:    { bg: colors.bg.infoSubtle ?? "#e0f2fe", fg: colors.text.info,      br: colors.border.tertiary },
+    success: { bg: colors.bg.successSubtle ?? "#dcfce7", fg: colors.text.success,   br: colors.border.tertiary },
+  } as const;
+  const c = map[tone];
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "2px 8px",
+        borderRadius: 9999,
+        backgroundColor: c.bg,
+        color: c.fg,
+        border: `1px solid ${c.br}`,
+        fontFamily: ff,
+        fontSize: 11,
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function HealthMetrics({ p95, successRate, lastChecked }: { p95: string; successRate: string; lastChecked: string }) {
+  const { colors } = useTheme();
+  const Cell = ({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <span style={{ fontSize: 11, color: colors.text.tertiary, fontFamily: ff }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: valueColor ?? colors.text.primary, fontFamily: ff }}>{value}</span>
+    </div>
+  );
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: 12,
+        padding: 10,
+        borderRadius: 6,
+        backgroundColor: colors.bg.secondary,
+        border: `1px solid ${colors.border.tertiary}`,
+      }}
+    >
+      <Cell label="Latency P95" value={p95} />
+      <Cell label="Success Rate" value={successRate} valueColor={colors.text.success} />
+      <Cell label="Last Health Check" value={lastChecked} />
+    </div>
+  );
+}
+
+function RestEndpointCard({ url }: { url: string }) {
+  const { colors } = useTheme();
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", gap: 12,
+        padding: 16,
+        backgroundColor: colors.bg.primary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>REST</span>
+          <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>· OIP v2</span>
+        </div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          <CapabilityBadge label="Unary" tone="neutral" />
+          <CapabilityBadge label="JSON"  tone="info" />
+          <CapabilityBadge label="path-routing" tone="neutral" />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: colors.text.tertiary, fontFamily: ff }}>Endpoint URL</span>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "8px 10px", borderRadius: 6,
+          backgroundColor: colors.bg.secondary,
+          border: `1px solid ${colors.border.tertiary}`,
+        }}>
+          <span style={{
+            fontFamily: "'Roboto Mono', monospace", fontSize: 12, color: colors.text.secondary,
+            flex: 1, minWidth: 0, lineHeight: "16px",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>{url}</span>
+          <CopyButton text={url} size={16} />
+        </div>
+      </div>
+
+      <HealthMetrics p95="42 ms" successRate="99.97%" lastChecked="30 sec ago" />
+    </div>
+  );
+}
+
+function GrpcEndpointCard({ address, modelMetadata }: { address: string; modelMetadata: string }) {
+  const { colors } = useTheme();
+
+  return (
+    <div
+      style={{
+        display: "flex", flexDirection: "column", gap: 12,
+        padding: 16,
+        backgroundColor: colors.bg.primary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>gRPC</span>
+          <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>· OIP v2</span>
+        </div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          <CapabilityBadge label="Unary"     tone="neutral" />
+          <CapabilityBadge label="Streaming" tone="success" />
+          <CapabilityBadge label="Protobuf"  tone="info" />
+          <CapabilityBadge label="mTLS"      tone="success" />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        style={{
+          alignSelf: "flex-start",
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "6px 10px",
+          border: `1px solid ${colors.border.secondary}`,
+          borderRadius: 6,
+          backgroundColor: colors.bg.primary,
+          fontFamily: ff, fontSize: 12, fontWeight: 500,
+          color: colors.text.secondary,
+          cursor: "pointer",
+        }}
+      >
+        <Icon name="download" size={14} color={colors.icon.secondary} />
+        OIP v2 Proto 다운로드
+      </button>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: colors.text.tertiary, fontFamily: ff }}>Endpoint Address</span>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "8px 10px", borderRadius: 6,
+          backgroundColor: colors.bg.secondary,
+          border: `1px solid ${colors.border.tertiary}`,
+        }}>
+          <span style={{
+            fontFamily: "'Roboto Mono', monospace", fontSize: 12, color: colors.text.secondary,
+            flex: 1, minWidth: 0,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>{address}</span>
+          <CopyButton text={address} size={16} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 500, color: colors.text.tertiary, fontFamily: ff }}>Metadata Headers</span>
+          <Tooltip
+            content="gRPC는 path 대신 metadata 헤더로 모델을 라우팅합니다. (REST는 path-based routing)"
+            direction="above-center"
+          >
+            <span style={{ display: "inline-flex", cursor: "help" }}>
+              <Icon name="info-circle-stroke" size={14} color={colors.icon.secondary} />
+            </span>
+          </Tooltip>
+        </div>
+        <MetadataKeyValueTable
+          rows={[
+            { key: "x-runway-model-name", value: modelMetadata },
+            { key: "authorization",       value: "Bearer ••••••" },
+            { key: "content-type",        value: "application/grpc" },
+          ]}
+        />
+      </div>
+
+      <HealthMetrics p95="18 ms" successRate="99.99%" lastChecked="30 sec ago" />
+    </div>
+  );
+}
+
+function MetadataKeyValueTable({ rows }: { rows: { key: string; value: string }[] }) {
+  const { colors } = useTheme();
+  return (
+    <div
+      style={{
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 6,
+        overflow: "hidden",
+        backgroundColor: colors.bg.secondary,
+      }}
+    >
+      {rows.map((r, i) => (
+        <div
+          key={r.key}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(140px, 200px) 1fr auto",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 10px",
+            borderTop: i === 0 ? "none" : `1px solid ${colors.border.tertiary}`,
+          }}
+        >
+          <span style={{ fontFamily: "'Roboto Mono', monospace", fontSize: 11, color: colors.text.secondary, fontWeight: 500 }}>
+            {r.key}
+          </span>
+          <span style={{
+            fontFamily: "'Roboto Mono', monospace", fontSize: 11, color: colors.text.primary,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
+          }}>
+            {r.value}
+          </span>
+          <CopyButton text={r.value} size={14} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Create / Deploy Drawer (shared form)
+// ═══════════════════════════════════════════════════════════════════════════════
+// GPU multi-select — node → model → individual GPU UUID hierarchical picker
+// ═══════════════════════════════════════════════════════════════════════════════
+type GpuModelGroup = { name: string; uuids: string[] };
+type GpuNode = { nodeName: string; models: GpuModelGroup[] };
+
+const MOCK_GPU_NODES: GpuNode[] = [
+  {
+    nodeName: "Black-cow-1",
+    models: [
+      { name: "Tesla V100-SXM2-32GB", uuids: [
+        "GPU-fab18675-8f17-5b08-115b-e85dd8216382",
+        "GPU-9a7791e8-4bbb-c4ad-018a-0576195f6fa0",
+        "GPU-aaaa1111-1111-1111-1111-111111111111",
+        "GPU-bbbb2222-2222-2222-2222-222222222222",
+      ] },
+    ],
+  },
+  {
+    nodeName: "Black-cow-2",
+    models: [
+      { name: "Tesla L4", uuids: [
+        "GPU-36487c3e-9165-985e-4776-2b4968ea0313",
+        "GPU-ecbce321-8a33-1dd6-5dd1-dc6aaafcc681",
+      ] },
+    ],
+  },
+  {
+    nodeName: "Black-cow-3",
+    models: [
+      { name: "Tesla V100-SXM2-32GB", uuids: [
+        "GPU-cccc3333-3333-3333-3333-333333333333",
+        "GPU-dddd4444-4444-4444-4444-444444444444",
+      ] },
+    ],
+  },
+];
+
+// Default selection — 3 + 2 + 1 = 6 GPUs across 3 (node, model) groups (matches Figma reference).
+const DEFAULT_GPU_SELECTION = new Set<string>([
+  "GPU-fab18675-8f17-5b08-115b-e85dd8216382",
+  "GPU-9a7791e8-4bbb-c4ad-018a-0576195f6fa0",
+  "GPU-aaaa1111-1111-1111-1111-111111111111",
+  "GPU-36487c3e-9165-985e-4776-2b4968ea0313",
+  "GPU-ecbce321-8a33-1dd6-5dd1-dc6aaafcc681",
+  "GPU-cccc3333-3333-3333-3333-333333333333",
+]);
+
+type GpuSelectionGroup = { nodeName: string; modelName: string; uuids: string[] };
+
+function groupSelections(nodes: GpuNode[], selectedUuids: Set<string>): GpuSelectionGroup[] {
+  const result: GpuSelectionGroup[] = [];
+  for (const node of nodes) {
+    for (const model of node.models) {
+      const picked = model.uuids.filter((u) => selectedUuids.has(u));
+      if (picked.length > 0) {
+        result.push({ nodeName: node.nodeName, modelName: model.name, uuids: picked });
+      }
+    }
+  }
+  return result;
+}
+
+function GpuModelMultiSelect({
+  nodes, selectedUuids, onChange,
+}: {
+  nodes: GpuNode[]; selectedUuids: Set<string>; onChange: (next: Set<string>) => void;
+}) {
+  const { colors } = useTheme();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const groups = groupSelections(nodes, selectedUuids);
+  const totalGpus = selectedUuids.size;
+  const numGroups = groups.length;
+
+  const isAllSelectedInModel = (m: GpuModelGroup) => m.uuids.every((u) => selectedUuids.has(u));
+  const isSomeSelectedInModel = (m: GpuModelGroup) => m.uuids.some((u) => selectedUuids.has(u));
+  const modelCheckState = (m: GpuModelGroup): boolean | "indeterminate" =>
+    isAllSelectedInModel(m) ? true : isSomeSelectedInModel(m) ? "indeterminate" : false;
+
+  const isAllSelectedInNode = (n: GpuNode) => n.models.every((m) => isAllSelectedInModel(m));
+  const isSomeSelectedInNode = (n: GpuNode) => n.models.some((m) => isSomeSelectedInModel(m));
+  const nodeCheckState = (n: GpuNode): boolean | "indeterminate" =>
+    isAllSelectedInNode(n) ? true : isSomeSelectedInNode(n) ? "indeterminate" : false;
+
+  const toggleGpu = (uuid: string) => {
+    const next = new Set(selectedUuids);
+    if (next.has(uuid)) next.delete(uuid); else next.add(uuid);
+    onChange(next);
+  };
+  const toggleModel = (m: GpuModelGroup) => {
+    const next = new Set(selectedUuids);
+    if (isAllSelectedInModel(m)) m.uuids.forEach((u) => next.delete(u));
+    else m.uuids.forEach((u) => next.add(u));
+    onChange(next);
+  };
+  const toggleNode = (n: GpuNode) => {
+    const next = new Set(selectedUuids);
+    const allSel = isAllSelectedInNode(n);
+    n.models.forEach((m) => m.uuids.forEach((u) => allSel ? next.delete(u) : next.add(u)));
+    onChange(next);
+  };
+
+  // Search — match against node name, model name, or UUID
+  const filteredNodes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return nodes;
+    return nodes
+      .map((n) => {
+        const nodeMatch = n.nodeName.toLowerCase().includes(q);
+        const filteredModels = n.models
+          .map((m) => {
+            const modelMatch = m.name.toLowerCase().includes(q);
+            const filteredUuids = m.uuids.filter((u) => u.toLowerCase().includes(q));
+            return nodeMatch || modelMatch
+              ? m // keep all uuids when parent matches
+              : filteredUuids.length > 0 ? { ...m, uuids: filteredUuids } : null;
+          })
+          .filter((m): m is GpuModelGroup => m !== null);
+        return filteredModels.length > 0 ? { ...n, models: filteredModels } : null;
+      })
+      .filter((n): n is GpuNode => n !== null);
+  }, [nodes, search]);
+
+  return (
+    <div ref={wrapperRef} style={{ position: "relative" }}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", height: 32,
+          padding: "0 12px",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          border: `1px solid ${open ? colors.text.interactive.runwayPrimary : colors.border.secondary}`,
+          borderRadius: 6,
+          backgroundColor: colors.bg.primary,
+          fontSize: 13,
+          color: colors.text.primary,
+          cursor: "pointer",
+          fontFamily: ff,
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        {totalGpus > 0 ? (
+          <span style={{
+            display: "inline-flex", alignItems: "center",
+            padding: "2px 8px",
+            borderRadius: 4,
+            backgroundColor: colors.bg.interactive.runwaySelected,
+            color: colors.text.interactive.runwayPrimary,
+            fontSize: 12, fontWeight: 500,
+          }}>
+            {numGroups} Selected GPU model ({totalGpus} GPUs)
+          </span>
+        ) : (
+          <span style={{ color: colors.text.tertiary }}>Select GPU model</span>
+        )}
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={16} color={colors.icon.secondary} />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+            maxHeight: 360, overflowY: "auto",
+            backgroundColor: colors.bg.primary,
+            border: `1px solid ${colors.border.secondary}`,
+            borderRadius: 6,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+            padding: 8,
+            zIndex: 10,
+          }}
+        >
+          {/* Search */}
+          <div style={{ padding: "0 0 8px" }}>
+            <TextField
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search..."
+              leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
+            />
+          </div>
+
+          {filteredNodes.length === 0 ? (
+            <div style={{ padding: 16, textAlign: "center", color: colors.text.tertiary, fontSize: 13, fontFamily: ff }}>
+              No GPUs found.
+            </div>
+          ) : (
+            filteredNodes.map((node) => (
+              <div key={node.nodeName} style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: colors.text.tertiary, padding: "4px 8px", fontFamily: ff }}>
+                  {node.nodeName}
+                </div>
+                {node.models.map((model) => (
+                  <div key={model.name} style={{ display: "flex", flexDirection: "column" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer", borderRadius: 4 }}>
+                      <Checkbox
+                        checked={modelCheckState(model)}
+                        onChange={() => toggleModel(model)}
+                      />
+                      <span style={{ fontSize: 13, color: colors.text.primary, fontFamily: ff }}>
+                        {model.name} ({model.uuids.length} GPUs)
+                      </span>
+                    </label>
+                    {model.uuids.map((uuid) => (
+                      <label key={uuid} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px 4px 32px", cursor: "pointer", borderRadius: 4 }}>
+                        <Checkbox
+                          checked={selectedUuids.has(uuid)}
+                          onChange={() => toggleGpu(uuid)}
+                        />
+                        <span style={{ fontSize: 12, fontFamily: "'Roboto Mono', monospace", color: colors.text.secondary }}>
+                          {uuid}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GpuSelectionChips({
+  nodes, selectedUuids, onChange,
+}: {
+  nodes: GpuNode[]; selectedUuids: Set<string>; onChange: (next: Set<string>) => void;
+}) {
+  const groups = groupSelections(nodes, selectedUuids);
+  if (groups.length === 0) return null;
+  const removeGroup = (g: GpuSelectionGroup) => {
+    const next = new Set(selectedUuids);
+    g.uuids.forEach((u) => next.delete(u));
+    onChange(next);
+  };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {groups.map((g) => (
+        <Chip
+          key={`${g.nodeName}-${g.modelName}`}
+          label={`${g.modelName} * ${g.uuids.length} (${g.nodeName})`}
+          tone="success"
+          size="sm"
+          closable
+          onClose={() => removeGroup(g)}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 type DrawerMode = "create-endpoint" | "deploy-model";
 
@@ -638,7 +1744,11 @@ function EndpointFormDrawer({
   const [modelPath, setModelPath] = useState("");
   const [cpu, setCpu] = useState("100000");
   const [memory, setMemory] = useState("10");
-  const [gpuEnabled, setGpuEnabled] = useState(false);
+  const [gpuEnabled, setGpuEnabled] = useState(true);
+  const [selectedGpuUuids, setSelectedGpuUuids] = useState<Set<string>>(() => new Set(DEFAULT_GPU_SELECTION));
+  const [gpuCount, setGpuCount] = useState("1");
+  const [gpuCorePct, setGpuCorePct] = useState("50");
+  const [gpuMemoryMib, setGpuMemoryMib] = useState("510");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [shmPath, setShmPath] = useState("/dev/shm");
   const [shmSize, setShmSize] = useState("10");
@@ -653,7 +1763,10 @@ function EndpointFormDrawer({
     setName(""); setId(""); setIdManual(false); setDesc("");
     setRuntime("triton");
     setVolume(""); setModelPath("");
-    setCpu("100000"); setMemory("10"); setGpuEnabled(false); setAdvancedOpen(false);
+    setCpu("100000"); setMemory("10"); setGpuEnabled(true);
+    setSelectedGpuUuids(new Set(DEFAULT_GPU_SELECTION));
+    setGpuCount("1"); setGpuCorePct("50"); setGpuMemoryMib("510");
+    setAdvancedOpen(false);
     setShmPath("/dev/shm"); setShmSize("10"); setReplicas("1");
     setResourceGuideOpen(false);
   };
@@ -829,27 +1942,30 @@ function EndpointFormDrawer({
                 Enable GPU Acceleration
               </span>
             </div>
-            <Switch checked={gpuEnabled} onCheckedChange={setGpuEnabled} />
+            <Switch checked={gpuEnabled} onChange={setGpuEnabled} />
           </div>
 
           {gpuEnabled && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16, borderRadius: 8, backgroundColor: colors.bg.secondary }}>
-              <Select
-                label="GPU model"
-                placeholder="Select GPU model"
-                options={[
-                  { value: "v100",  label: "Tesla V100-SXM2-32GB" },
-                  { value: "a100",  label: "Tesla A100-SXM4-80GB" },
-                  { value: "h100",  label: "Tesla H100-80GB HBM3" },
-                  { value: "l4",    label: "Tesla L4" },
-                ]}
-                value=""
-                onChange={() => {}}
-              />
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: colors.text.secondary, fontFamily: ff }}>
+                  GPU model
+                </span>
+                <GpuModelMultiSelect
+                  nodes={MOCK_GPU_NODES}
+                  selectedUuids={selectedGpuUuids}
+                  onChange={setSelectedGpuUuids}
+                />
+                <GpuSelectionChips
+                  nodes={MOCK_GPU_NODES}
+                  selectedUuids={selectedGpuUuids}
+                  onChange={setSelectedGpuUuids}
+                />
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <TextField label="GPU Count" value="2" onChange={() => {}} helpMessage="/ 6" />
-                <TextField label="GPU core (%)" value="50" onChange={() => {}} helpMessage="/ 100" />
-                <TextField label="GPU memory (MiB)" value="510" onChange={() => {}} helpMessage="/ 32510" />
+                <TextField label="GPU Count" value={gpuCount} onChange={(e) => setGpuCount(e.target.value)} helpMessage={`/ ${selectedGpuUuids.size || 0}`} />
+                <TextField label="GPU core (%)" value={gpuCorePct} onChange={(e) => setGpuCorePct(e.target.value)} helpMessage="/ 100" />
+                <TextField label="GPU memory (MiB)" value={gpuMemoryMib} onChange={(e) => setGpuMemoryMib(e.target.value)} helpMessage="/ 32510" />
               </div>
             </div>
           )}
@@ -1013,9 +2129,13 @@ function Section({ title, actions, children }: { title: string; actions?: React.
 interface InferenceEndpointPageProps {
   onNavigate?: (key: string) => void;
   projectName?: string;
+  /** Open this endpoint's detail on mount (matched by InferenceEndpoint.name; falls back to first endpoint). */
+  initialEndpointName?: string;
+  /** Detail tab to start on when initialEndpointName is supplied. */
+  initialDetailTab?: "overview" | "monitoring";
 }
 
-export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models" }: InferenceEndpointPageProps) {
+export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models", initialEndpointName, initialDetailTab }: InferenceEndpointPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("inference");
   const [endpoints, setEndpoints] = useState(SAMPLE_ENDPOINTS);
@@ -1023,6 +2143,15 @@ export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models" }
   const [createOpen, setCreateOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [query, setQuery] = useState("");
+
+  // Deep-link: open detail when navigated from a workload drawer.
+  React.useEffect(() => {
+    if (!initialEndpointName) return;
+    const ep = SAMPLE_ENDPOINTS.find((e) => e.name === initialEndpointName) ?? SAMPLE_ENDPOINTS[0];
+    if (!ep) return;
+    setSelected(ep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEndpointName]);
 
   const handleNavSelect = (k: string) => { setSelectedNav(k); onNavigate?.(k); };
 
@@ -1044,7 +2173,11 @@ export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models" }
         <AppGnb
           breadcrumbs={[
             { label: projectName, icon: <Icon name="folder_open" size={20} color={colors.icon.secondary} /> },
-            { label: "Inference services", icon: <Icon name="inference_endpoint" size={20} color={colors.icon.secondary} /> },
+            {
+              label: "Inference endpoint",
+              icon: <Icon name="inference_endpoint" size={20} color={colors.icon.secondary} /> ,
+              onClick: selected ? () => setSelected(null) : undefined,
+            },
             { label: selected ? selected.name : "Deployments" },
           ]}
         />
@@ -1052,8 +2185,8 @@ export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models" }
         {selected ? (
           <EndpointDetailView
             endpoint={selected}
-            onBack={() => setSelected(null)}
             onDeployModel={() => setDeployOpen(true)}
+            initialDetailTab={initialDetailTab}
           />
         ) : (
           <EndpointListView

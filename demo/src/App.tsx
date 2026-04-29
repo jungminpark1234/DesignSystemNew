@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from "react";
 import { useTheme } from "./theme";
-import { LnbWorkspacePage } from "./pages/LnbWorkspacePage";
 import { PlatformAppsPage } from "./pages/PlatformAppsPage";
 import { DataConnectionsPage } from "./pages/DataConnectionsPage";
 import { CatalogPage } from "./pages/CatalogPage";
@@ -23,7 +22,6 @@ const TABS = [
   { key: "inference", label: "Inference Endpoint" },
   { key: "application", label: "Application" },
   { key: "projects", label: "Projects" },
-  { key: "lnb", label: "LNB Workspace" },
   { key: "platform", label: "Platform Apps" },
   { key: "catalog", label: "Catalog" },
   { key: "data", label: "Data Connections" },
@@ -32,28 +30,74 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-/** Map LNB nav keys to top-level tab keys */
-const NAV_TO_TAB: Record<string, TabKey> = {
-  "projects": "projects",
-  "platform": "platform",
-  "catalog": "catalog",
-  "application": "application",
-  "data-connection": "data",
-  "settings": "lnb",
-  "general": "ws-general",
-  "role": "lnb",
-  "admin-general": "admin-general",
+/** Sidebar scope — different LNB shells route the same nav key to different tabs */
+type Scope = "workspace" | "project" | "admin";
+
+const TAB_SCOPE: Record<TabKey, Scope> = {
+  "ws-general": "workspace",
+  "admin-monitoring": "workspace",
+  "projects": "workspace",
+  "platform": "workspace",
+
+  "catalog": "project",
+  "application": "project",
+  "inference": "project",
+  "project-monitoring": "project",
+  "data": "project",
+
+  "admin-general": "admin",
+  "runway-admin-monitoring": "admin",
+
+  "form": "workspace",
+};
+
+/**
+ * For each scope, map LNB nav keys → tab keys.
+ * Keys come from `WORKSPACE_NAV` / `PROJECT_NAV` / `ADMIN_NAV` in `data/navigation.tsx`
+ * plus locally-defined RUNWAY_ADMIN_NAV in RunwayAdminMonitoringPage.
+ */
+const SCOPE_NAV_TO_TAB: Record<Scope, Record<string, TabKey>> = {
+  workspace: {
+    "projects":            "projects",
+    "platform":            "platform",
+    "monitoring":          "admin-monitoring",
+    "general":             "ws-general",
+    "ws-data-connection":  "data",
+    // No dedicated pages: members, role, settings (parent)
+  },
+  project: {
+    "catalog":         "catalog",
+    "application":     "application",
+    "inference":       "inference",
+    "monitoring":      "project-monitoring",
+    "data-connection": "data",
+    "general":         "ws-general",        // fallback to workspace general
+    // No dedicated pages: storage, member, role, setting (parent)
+  },
+  admin: {
+    "admin-general":  "admin-general",
+    "monitoring":     "runway-admin-monitoring",
+    "workspaces":     "projects",            // closest existing page
+    "accounts":       "projects",            // ADMIN_NAV — closest existing page
+    "users":          "projects",            // RUNWAY_ADMIN_NAV — closest
+    "security":       "admin-general",       // RUNWAY_ADMIN_NAV — fallback
+    // No dedicated pages: logs, admin-sync, admin-security
+  },
 };
 
 export default function App() {
   const { isDark, toggle, colors } = useTheme();
-  const [activeTab, setActiveTab] = useState<TabKey>("lnb");
+  const [activeTab, setActiveTab] = useState<TabKey>("ws-general");
   const [selectedProject, setSelectedProject] = useState<string>("NLP Models");
+  // Deep-link target when "자세히 보기" is clicked from a workload drawer.
+  // Cleared after the destination page consumes it (or on next tab change).
+  const [pendingWorkload, setPendingWorkload] = useState<{ type: "application" | "inference"; name: string } | null>(null);
 
   const handleLnbNavigate = useCallback((navKey: string) => {
-    const tabKey = NAV_TO_TAB[navKey];
+    const scope = TAB_SCOPE[activeTab] ?? "workspace";
+    const tabKey = SCOPE_NAV_TO_TAB[scope][navKey];
     if (tabKey) setActiveTab(tabKey);
-  }, []);
+  }, [activeTab]);
 
   const handleSelectProject = useCallback((projectName: string) => {
     setSelectedProject(projectName);
@@ -138,6 +182,10 @@ export default function App() {
               setSelectedProject(projectName);
               setActiveTab("project-monitoring");
             }}
+            onSelectWorkload={(w) => {
+              setPendingWorkload(w);
+              setActiveTab(w.type === "inference" ? "inference" : "application");
+            }}
           />
         )}
         {activeTab === "project-monitoring" && (
@@ -145,15 +193,29 @@ export default function App() {
             onNavigate={handleLnbNavigate}
             projectName={selectedProject}
             onSelectWorkload={(w) => {
+              setPendingWorkload(w);
               setActiveTab(w.type === "inference" ? "inference" : "application");
             }}
           />
         )}
         {activeTab === "runway-admin-monitoring" && <RunwayAdminMonitoringPage onNavigate={handleLnbNavigate} />}
-        {activeTab === "inference" && <InferenceEndpointPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
-        {activeTab === "application" && <ApplicationPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
+        {activeTab === "inference" && (
+          <InferenceEndpointPage
+            onNavigate={handleLnbNavigate}
+            projectName={selectedProject}
+            initialEndpointName={pendingWorkload?.type === "inference" ? pendingWorkload.name : undefined}
+            initialDetailTab={pendingWorkload?.type === "inference" ? "monitoring" : undefined}
+          />
+        )}
+        {activeTab === "application" && (
+          <ApplicationPage
+            onNavigate={handleLnbNavigate}
+            projectName={selectedProject}
+            initialAppName={pendingWorkload?.type === "application" ? pendingWorkload.name : undefined}
+            initialDetailTab={pendingWorkload?.type === "application" ? "monitoring" : undefined}
+          />
+        )}
         {activeTab === "projects" && <ProjectsPage onNavigate={handleLnbNavigate} onSelectProject={handleSelectProject} />}
-        {activeTab === "lnb" && <LnbWorkspacePage projectName={selectedProject} />}
         {activeTab === "platform" && <PlatformAppsPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "catalog" && <CatalogPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}
         {activeTab === "data" && <DataConnectionsPage onNavigate={handleLnbNavigate} projectName={selectedProject} />}

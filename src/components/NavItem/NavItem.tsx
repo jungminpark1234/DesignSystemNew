@@ -210,9 +210,9 @@ export const SubNavItem: React.FC<SubNavItemProps> = ({
   const bg = selected
     ? `var(--ds-bg-interactive-runway-selected, ${colorBg.interactive.runwaySelected})`
     : pressed
-    ? `var(--ds-bg-secondary, ${colorBg.secondary})`
+    ? `var(--ds-bg-tertiary-hovered, ${colorBg.tertiaryHovered})`
     : hovered
-    ? `var(--ds-bg-secondary, ${colorBg.secondary})`
+    ? `var(--ds-bg-tertiary-hovered, ${colorBg.tertiaryHovered})`
     : `var(--ds-bg-tertiary, ${colorBg.tertiary})`;
 
   const textColor = selected

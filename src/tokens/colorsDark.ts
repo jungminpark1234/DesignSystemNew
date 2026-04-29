@@ -79,6 +79,7 @@ export const colorBgDark = {
   primary:         "#000005",        // main app background — near-black with blue tint
   secondary:       "#080a10",        // sidebar, navigation panels
   tertiary:        "#0f1219",        // cards, section panels
+  tertiaryHovered: "#161a22",        // hover state for tertiary surfaces
   neutral:         "#161a22",        // neutral fills (e.g. switch off)
   runway:          p.blue[600],
   drawx:           "#4f39f6",

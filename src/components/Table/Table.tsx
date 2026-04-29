@@ -227,11 +227,12 @@ export function Table<T extends Record<string, unknown>>({
     padding: 16,
     height: 48,
     color: importanceTextColor[importance],
-    fontWeight: importance === "primary" ? fontWeight.medium : fontWeight.regular,
+    fontWeight: fontWeight.regular,
     fontSize: 14,
     lineHeight: "16px",
     borderBottom: `1px solid ${v("--ds-border-tertiary", colorBorder.tertiary)}`,
     verticalAlign: "middle",
+    whiteSpace: "nowrap",
     backgroundColor: isSelected
       ? v("--ds-bg-interactive-runway-selected", colorBg.interactive.runwaySelected)
       : isHovered
@@ -251,7 +252,7 @@ export function Table<T extends Record<string, unknown>>({
   return (
     <div
       className={className}
-      style={{ overflowX: "auto", overflow: "clip", borderRadius: borderRadius.xl, border: `1px solid ${v("--ds-border-secondary", colorBorder.secondary)}` }}
+      style={{ overflowX: "auto", borderRadius: borderRadius.xl, border: `1px solid ${v("--ds-border-secondary", colorBorder.secondary)}` }}
     >
       <table style={tableStyle}>
         <thead>

@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Area,
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip as ReTooltip,
   XAxis,
@@ -18,7 +19,7 @@ import { WORKSPACE_NAV } from "../data/navigation";
 import { AppGnb } from "../components/AppGnb";
 import { SecondaryButton, PrimaryButton } from "../components/DrawerShell";
 import { ResourceGuideModal } from "../components/ResourceGuideModal";
-import { WorkloadsTable, SAMPLE_WORKLOADS } from "./ProjectMonitoringPage";
+import { WorkloadsTable, SAMPLE_WORKLOADS, WorkloadDetailDrawer, type Workload } from "./ProjectMonitoringPage";
 
 const ff = "'Pretendard', sans-serif";
 
@@ -119,13 +120,14 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
-export function SectionTitle({ title, hint, right }: { title: string; hint?: string; right?: React.ReactNode }) {
+export function SectionTitle({ title, hint, right, adjacent }: { title: string; hint?: string; right?: React.ReactNode; adjacent?: React.ReactNode }) {
   const { colors } = useTheme();
   const [hover, setHover] = useState(false);
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
         <span style={{ fontSize: 16, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>{title}</span>
+        {adjacent && <div style={{ marginLeft: 2, display: "inline-flex", alignItems: "center" }}>{adjacent}</div>}
         {hint && (
           <div
             onMouseEnter={() => setHover(true)}
@@ -166,6 +168,29 @@ export function SectionTitle({ title, hint, right }: { title: string; hint?: str
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Metric icon badge — 24×24 neutral surface with 16px icon, used by AllocationCard / QuotaCard
+// ═══════════════════════════════════════════════════════════════════════════════
+function MetricIconBadge({ name }: { name: Metric["iconName"] }) {
+  const { colors } = useTheme();
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        backgroundColor: colors.bg.disabled,
+        flexShrink: 0,
+      }}
+    >
+      <Icon name={name} size={16} color={colors.text.primary} />
+    </span>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Allocation card (KPI tile with progress bar)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function AllocationCard({ metric, onViewDetails }: { metric: Metric; onViewDetails?: () => void }) {
@@ -197,7 +222,7 @@ export function AllocationCard({ metric, onViewDetails }: { metric: Metric; onVi
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Icon name={metric.iconName} size={24} color={colors.icon.secondary} />
+          <MetricIconBadge name={metric.iconName} />
           <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>{metric.label}</span>
         </div>
         {onViewDetails && (
@@ -256,21 +281,66 @@ export function AllocationCard({ metric, onViewDetails }: { metric: Metric; onVi
   );
 }
 
+// ─── Trend chart palette (capacity / allocated / used) ───────────────────────
+const QUOTA_PALETTE = {
+  capacity:  "#6B7280",
+  allocated: "#BD63F1",
+  used:      "#2464E4",
+  usedFill:  "rgba(36, 100, 228, 0.18)",
+} as const;
+
+// ─── Drag-to-zoom hook for recharts charts ─────────────────────────────────
+function useChartZoom(totalLength: number) {
+  const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
+  const [zoomedRange, setZoomedRange] = useState<[number, number] | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const onMouseDown = (e: { activeLabel?: string } | null) => {
+    if (!e || !e.activeLabel) return;
+    setRefAreaLeft(e.activeLabel);
+    setRefAreaRight(e.activeLabel);
+    setIsSelecting(true);
+  };
+  const onMouseMove = (e: { activeLabel?: string } | null) => {
+    if (!isSelecting || !e || !e.activeLabel) return;
+    setRefAreaRight(e.activeLabel);
+  };
+  const onMouseUp = () => {
+    setIsSelecting(false);
+    if (!refAreaLeft || !refAreaRight || refAreaLeft === refAreaRight) {
+      setRefAreaLeft(null);
+      setRefAreaRight(null);
+      return;
+    }
+    // Resolve positions in the underlying data via the labels (handled by caller via a slice index — we let the chart consumer do the slice)
+    const li = TIME_LABELS.indexOf(refAreaLeft);
+    const ri = TIME_LABELS.indexOf(refAreaRight);
+    if (li >= 0 && ri >= 0) {
+      const [a, b] = li < ri ? [li, ri] : [ri, li];
+      if (b - a >= 1) setZoomedRange([a, Math.min(b, totalLength - 1)]);
+    }
+    setRefAreaLeft(null);
+    setRefAreaRight(null);
+  };
+  const reset = () => setZoomedRange(null);
+
+  return { refAreaLeft, refAreaRight, zoomedRange, isSelecting, onMouseDown, onMouseMove, onMouseUp, reset };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Semicircle gauge (Quota assignment)
 // ═══════════════════════════════════════════════════════════════════════════════
 function SemicircleGauge({ value, color, empty = false, animate = true }: { value: number; color: string; empty?: boolean; animate?: boolean }) {
   const { colors } = useTheme();
-  // viewBox 좌표 — 컨테이너 너비에 맞춰 반응형 스케일됨
   const W = 200;
-  const stroke = 16;
+  const stroke = 8;
   const r = (W - stroke) / 2;
   const cx = W / 2;
-  const cy = W / 2; // bottom of arc baseline = cy
+  const cy = W / 2;
   const H = cy + stroke / 2;
 
   const safe = empty ? 0 : Math.max(0, Math.min(100, value));
-  // 0 → safe 애니메이션 (가운데 숫자 카운트업도 같이 오게)
   const [animVal, setAnimVal] = useState(animate ? 0 : safe);
   useEffect(() => {
     if (!animate) {
@@ -283,7 +353,6 @@ function SemicircleGauge({ value, color, empty = false, animate = true }: { valu
     let raf = 0;
     const step = (t: number) => {
       const p = Math.min(1, (t - start) / duration);
-      // ease-out
       const eased = 1 - Math.pow(1 - p, 3);
       setAnimVal(safe * eased);
       if (p < 1) raf = requestAnimationFrame(step);
@@ -292,7 +361,6 @@ function SemicircleGauge({ value, color, empty = false, animate = true }: { valu
     return () => cancelAnimationFrame(raf);
   }, [safe, animate]);
 
-  // 반원에서 fill 호는 항상 180° 이하 → large-arc-flag = 0, sweep-flag = 1 (시계방향)
   const arcPath = (pct: number) => {
     if (pct <= 0) return "";
     const clamped = Math.min(0.9999, pct);
@@ -325,7 +393,6 @@ function SemicircleGauge({ value, color, empty = false, animate = true }: { valu
             fill="none"
           />
         )}
-        {/* 가운데 % 텍스트 — animVal 카운트업과 함께 변화 */}
         {!empty && (
           <g transform={`translate(${cx} ${cy - 6})`} pointerEvents="none">
             <text
@@ -353,12 +420,12 @@ function SemicircleGauge({ value, color, empty = false, animate = true }: { valu
 // ═══════════════════════════════════════════════════════════════════════════════
 export function QuotaCard({ metric, sharedNote }: { metric: Metric; sharedNote?: string }) {
   const { colors } = useTheme();
-  const pct = (metric.allocated / metric.capacity) * 100;
+  const isShared = !!sharedNote;
+  const pct = metric.capacity > 0 ? Math.min(100, (metric.allocated / metric.capacity) * 100) : 0;
   const color =
     pct >= 90 ? colors.bg.danger :
     pct >= 70 ? colors.bg.warning :
     colors.bg.success;
-  const isShared = !!sharedNote;
   return (
     <div
       style={{
@@ -371,17 +438,15 @@ export function QuotaCard({ metric, sharedNote }: { metric: Metric; sharedNote?:
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Icon name={metric.iconName} size={24} color={colors.icon.secondary} />
+        <MetricIconBadge name={metric.iconName} />
         <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>{metric.label}</span>
       </div>
 
-      <span style={{ fontSize: 12, fontWeight: 500, color: colors.text.secondary, fontFamily: ff }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>
         Assignment rate
       </span>
 
-      <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
-        <SemicircleGauge value={pct} color={color} empty={isShared} />
-      </div>
+      <SemicircleGauge value={pct} color={color} empty={isShared} />
 
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, fontFamily: ff, minWidth: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
@@ -449,9 +514,18 @@ const SUB_COLS = [
   { key: "used",       label: "Used" },
 ] as const;
 
-export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project" }: { rows: ProjectRow[]; query: string; onRowClick?: (r: ProjectRow) => void; leftHeader?: string }) {
+export type WorkloadStats = { total: number; avgUtil: string; idle: number };
+
+const WORKLOAD_SUB_COLS = [
+  { key: "total",   label: "Total" },
+  { key: "avgUtil", label: "Avg util" },
+  { key: "idle",    label: "Idle" },
+] as const;
+
+export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project", workloadStats }: { rows: ProjectRow[]; query: string; onRowClick?: (r: ProjectRow) => void; leftHeader?: string; workloadStats?: Record<string, WorkloadStats> }) {
   const { colors } = useTheme();
   const filtered = rows.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()));
+  const showWorkloads = !!workloadStats;
 
   const cellBase: React.CSSProperties = {
     padding: "12px 12px",
@@ -469,7 +543,7 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project" 
     textAlign: "left",
   };
   // 그룹(CPU | Memory | Disk) 시각적 구분 — primary border
-  const groupBorder = `2px solid ${colors.border.primary}`;
+  const groupBorder = `1px solid ${colors.border.secondary}`;
 
   return (
     <div
@@ -480,13 +554,18 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project" 
         backgroundColor: colors.bg.primary,
       }}
     >
-      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1200 }}>
+      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: showWorkloads ? 1380 : 1200 }}>
         <thead>
           {/* Top header row — grouped */}
           <tr>
             <th rowSpan={2} style={{ ...headerBase, position: "sticky", left: 0, zIndex: 2, minWidth: 220, borderRight: groupBorder }}>
               {leftHeader}
             </th>
+            {showWorkloads && (
+              <th colSpan={WORKLOAD_SUB_COLS.length} style={{ ...headerBase, textAlign: "center", borderBottom: `1px solid ${colors.border.tertiary}`, borderRight: groupBorder }}>
+                Workloads
+              </th>
+            )}
             <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderBottom: `1px solid ${colors.border.tertiary}`, borderRight: groupBorder }}>
               CPU
             </th>
@@ -499,6 +578,19 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project" 
           </tr>
           {/* Subheader */}
           <tr>
+            {showWorkloads && WORKLOAD_SUB_COLS.map((c, ci) => (
+              <th
+                key={`workloads-${c.key}`}
+                style={{
+                  ...headerBase,
+                  fontWeight: 500,
+                  fontSize: 11,
+                  borderRight: ci === WORKLOAD_SUB_COLS.length - 1 ? groupBorder : undefined,
+                }}
+              >
+                {c.label}
+              </th>
+            ))}
             {(["cpu","memory","disk"] as const).map((group, gi) => (
               SUB_COLS.map((c, ci) => (
                 <th
@@ -550,6 +642,26 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project" 
                   {row.name}
                 </a>
               </td>
+              {showWorkloads && (() => {
+                const w = workloadStats?.[row.name] ?? { total: 0, avgUtil: "—", idle: 0 };
+                return WORKLOAD_SUB_COLS.map((c, ci) => {
+                  const isIdle = c.key === "idle" && w.idle > 0;
+                  return (
+                    <td
+                      key={`${row.name}-workloads-${c.key}`}
+                      style={{
+                        ...cellBase,
+                        borderTop: ri === 0 ? undefined : `1px solid ${colors.border.tertiary}`,
+                        borderRight: ci === WORKLOAD_SUB_COLS.length - 1 ? groupBorder : undefined,
+                        color: isIdle ? colors.text.warning : cellBase.color,
+                        fontWeight: isIdle ? 500 : undefined,
+                      }}
+                    >
+                      {w[c.key as keyof WorkloadStats]}
+                    </td>
+                  );
+                });
+              })()}
               {(["cpu","memory","disk"] as const).map((group, gi) => (
                 SUB_COLS.map((c, ci) => (
                   <td
@@ -588,33 +700,56 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project" 
 // Trend chart (recharts)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function TrendChart({ metricKey }: { metricKey: Metric["key"] }) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const series = SERIES[metricKey];
+  const zoom = useChartZoom(series.data.length);
 
-  const palette = useMemo(() => ({
-    capacity:  isDark ? "#9ca3af" : "#6b7280",
-    allocated: "#a855f7",
-    used:      "#3b82f6",
-    usedFill:  "rgba(59, 130, 246, 0.18)",
-  }), [isDark]);
+  const palette = QUOTA_PALETTE;
+
+  const data = zoom.zoomedRange
+    ? series.data.slice(zoom.zoomedRange[0], zoom.zoomedRange[1] + 1)
+    : series.data;
 
   return (
     <Card>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>{series.label}</span>
-        <span style={{ fontSize: 12, fontWeight: 400, color: colors.text.tertiary, fontFamily: ff }}>({series.unit})</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, minHeight: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>{series.label}</span>
+          <span style={{ fontSize: 12, fontWeight: 400, color: colors.text.tertiary, fontFamily: ff }}>({series.unit})</span>
+        </div>
+        {zoom.zoomedRange && (
+          <SecondaryButton
+            label="Reset zoom"
+            onClick={zoom.reset}
+            icon={<Icon name="reset" size={16} color="currentColor" />}
+            style={{ height: 32, padding: "6px 12px", fontSize: 13 }}
+          />
+        )}
       </div>
 
       {/* Legend */}
       <div style={{ display: "flex", justifyContent: "center", gap: 16, fontSize: 12, fontFamily: ff, color: colors.text.secondary }}>
-        <LegendItem color={palette.capacity}  label="Capacity"  dashed />
-        <LegendItem color={palette.allocated} label="Allocated" />
-        <LegendItem color={palette.used}      label="Used" />
+        <LegendItem color={palette.capacity}  label="용량"   dashed />
+        <LegendItem color={palette.allocated} label="할당됨" />
+        <LegendItem color={palette.used}      label="사용됨" />
       </div>
 
-      <div style={{ width: "100%", height: 220 }}>
+      <div
+        style={{
+          width: "100%", height: 220,
+          outline: "none", userSelect: "none",
+          cursor: zoom.isSelecting ? "crosshair" : "default",
+        }}
+        tabIndex={-1}
+      >
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={series.data} margin={{ top: 8, right: 16, bottom: 0, left: -8 }}>
+          <ComposedChart
+            data={data}
+            margin={{ top: 8, right: 16, bottom: 0, left: -8 }}
+            onMouseDown={zoom.onMouseDown}
+            onMouseMove={zoom.onMouseMove}
+            onMouseUp={zoom.onMouseUp}
+          >
             <defs>
               <linearGradient id={`fill-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={palette.used} stopOpacity={0.25} />
@@ -628,14 +763,17 @@ export function TrendChart({ metricKey }: { metricKey: Metric["key"] }) {
               tickLine={false}
               axisLine={{ stroke: colors.border.tertiary }}
               interval="preserveStartEnd"
+              allowDataOverflow
             />
             <YAxis
               tick={{ fontSize: 10, fill: colors.text.tertiary, fontFamily: ff }}
               tickLine={false}
               axisLine={false}
               width={40}
+              allowDataOverflow
             />
             <ReTooltip
+              cursor={{ stroke: colors.border.secondary, strokeWidth: 1 }}
               contentStyle={{
                 backgroundColor: colors.bg.primary,
                 border: `1px solid ${colors.border.secondary}`,
@@ -657,7 +795,8 @@ export function TrendChart({ metricKey }: { metricKey: Metric["key"] }) {
               fill={`url(#fill-${metricKey})`}
               dot={false}
               isAnimationActive={false}
-              name="Used"
+              activeDot={false}
+              name="사용됨"
             />
             <Line
               type="monotone"
@@ -666,7 +805,8 @@ export function TrendChart({ metricKey }: { metricKey: Metric["key"] }) {
               strokeWidth={1.5}
               dot={false}
               isAnimationActive={false}
-              name="Allocated"
+              activeDot={false}
+              name="할당됨"
             />
             <Line
               type="monotone"
@@ -676,8 +816,18 @@ export function TrendChart({ metricKey }: { metricKey: Metric["key"] }) {
               strokeDasharray="4 4"
               dot={false}
               isAnimationActive={false}
-              name="Capacity"
+              activeDot={false}
+              name="용량"
             />
+            {zoom.refAreaLeft && zoom.refAreaRight && (
+              <ReferenceArea
+                x1={zoom.refAreaLeft}
+                x2={zoom.refAreaRight}
+                stroke="none"
+                fill={palette.used}
+                fillOpacity={0.1}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -797,18 +947,21 @@ interface AdminMonitoringPageProps {
   onNavigate?: (key: string) => void;
   /** Projects 탭에서 행 클릭 시 호출 — 부모가 해당 프로젝트의 모니터링 페이지로 라우팅 */
   onSelectProject?: (projectName: string) => void;
+  /** 워크로드 드로어의 "자세히 보기" 클릭 시 — 부모가 해당 application/inference 상세 페이지로 라우팅 */
+  onSelectWorkload?: (w: { type: "application" | "inference"; name: string }) => void;
 }
 
-export function AdminMonitoringPage({ onNavigate, onSelectProject }: AdminMonitoringPageProps) {
+export function AdminMonitoringPage({ onNavigate, onSelectProject, onSelectWorkload }: AdminMonitoringPageProps) {
   const { colors } = useTheme();
   const [selectedNav, setSelectedNav] = useState("monitoring");
-  const [scope, setScope] = useState<"workspace" | "projects">("workspace");
+  const [scope, setScope] = useState<"workspace" | "projects" | "workloads">("workspace");
   const [timeRange, setTimeRange] = useState<TimeRange>("1W");
   const [lastRefreshed, setLastRefreshed] = useState(() => formatNow());
   const [scrolled, setScrolled] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
   const [workloadQuery, setWorkloadQuery] = useState("");
   const [nodeDetailsOpen, setNodeDetailsOpen] = useState(false);
+  const [selectedWorkload, setSelectedWorkload] = useState<Workload | null>(null);
   const [customFrom, setCustomFrom] = useState(() => isoLocalNow(-7));
   const [customTo, setCustomTo] = useState(() => isoLocalNow(0));
 
@@ -828,6 +981,14 @@ export function AdminMonitoringPage({ onNavigate, onSelectProject }: AdminMonito
         hideBaseDomain
         hideTabs
         standalone
+      />
+      <WorkloadDetailDrawer
+        workload={selectedWorkload}
+        onClose={() => setSelectedWorkload(null)}
+        onOpenFullPage={onSelectWorkload ? (w) => {
+          setSelectedWorkload(null);
+          onSelectWorkload({ type: w.type, name: w.name });
+        } : undefined}
       />
       <Sidebar
         items={WORKSPACE_NAV}
@@ -889,12 +1050,13 @@ export function AdminMonitoringPage({ onNavigate, onSelectProject }: AdminMonito
           onScroll={(e) => setScrolled((e.target as HTMLDivElement).scrollTop > 0)}
           style={{ flex: 1, overflow: "auto", padding: "16px 24px 32px" }}
         >
-          {/* Scope tabs (Workspace / Projects) */}
+          {/* Scope tabs (Workspace / Projects / Workloads) */}
           <div style={{ marginBottom: 24 }}>
             <Tabs
               items={[
                 { key: "workspace", label: "Workspace" },
                 { key: "projects",  label: "Projects" },
+                { key: "workloads", label: "Workloads" },
               ]}
               selectedKey={scope}
               onChange={(k) => setScope(k as typeof scope)}
@@ -934,7 +1096,7 @@ export function AdminMonitoringPage({ onNavigate, onSelectProject }: AdminMonito
                   />
                 }
               />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 16 }}>
                 <TrendChart metricKey="cpu" />
                 <TrendChart metricKey="memory" />
                 <TrendChart metricKey="storage" />
@@ -968,32 +1130,31 @@ export function AdminMonitoringPage({ onNavigate, onSelectProject }: AdminMonito
                 />
               </div>
               <ProjectsTable rows={PROJECTS} query={projectQuery} onRowClick={(row) => onSelectProject?.(row.name)} />
+            </>
+          )}
 
-              {/* 워크로드별 자원 사용 현황 — 워크스페이스 단위 (어떤 프로젝트에 속한 워크로드인지 표시) */}
-              <div style={{ marginTop: 32 }}>
-                <SectionTitle
-                  title="워크로드별 자원 사용 현황"
-                  hint={"워크스페이스 내 모든 프로젝트의 워크로드 자원 할당/사용 현황입니다.\n• 할당됨 / 사용됨 컬럼 헤더 클릭으로 정렬\n• 할당 대비 사용률 10% 미만은 주황색 (자원 과다할당 식별)"}
-                />
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
-                  <div style={{ maxWidth: 280, flex: 1 }}>
-                    <TextField
-                      value={workloadQuery}
-                      onChange={(e) => setWorkloadQuery(e.target.value)}
-                      placeholder="워크로드 이름 검색..."
-                      leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
-                    />
-                  </div>
+          {scope === "workloads" && (
+            <>
+              <SectionTitle
+                title="워크로드별 자원 사용 현황"
+                hint={"워크스페이스 내 모든 프로젝트의 워크로드 자원 할당/사용 현황입니다.\n• 할당됨 / 사용됨 컬럼 헤더 클릭으로 정렬\n• 할당 대비 사용률 10% 미만은 주황색 (자원 과다할당 식별)"}
+              />
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
+                <div style={{ maxWidth: 280, flex: 1 }}>
+                  <TextField
+                    value={workloadQuery}
+                    onChange={(e) => setWorkloadQuery(e.target.value)}
+                    placeholder="워크로드 이름 검색..."
+                    leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
+                  />
                 </div>
-                <WorkloadsTable
-                  workloads={SAMPLE_WORKLOADS.filter((w) => w.workspace === "Data studio")}
-                  query={workloadQuery}
-                  showProject
-                  onRowClick={(w) => {
-                    onSelectProject?.(w.project);
-                  }}
-                />
               </div>
+              <WorkloadsTable
+                workloads={SAMPLE_WORKLOADS.filter((w) => w.workspace === "Data studio")}
+                query={workloadQuery}
+                showProject
+                onRowClick={(w) => setSelectedWorkload(w)}
+              />
             </>
           )}
         </div>
