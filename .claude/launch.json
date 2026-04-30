@@ -3,15 +3,15 @@
   "configurations": [
     {
       "name": "demo",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "5180"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "PATH=/opt/homebrew/bin:$PATH exec npx vite --port 5180"],
       "port": 5180,
       "cwd": "demo"
     },
     {
       "name": "docs",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "PATH=/opt/homebrew/bin:$PATH exec npx vite"],
       "port": 5174,
       "cwd": "docs"
     }
