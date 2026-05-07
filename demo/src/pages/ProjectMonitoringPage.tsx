@@ -25,6 +25,7 @@ import {
 } from "./AdminMonitoringPage";
 
 const ff = "'Pretendard', sans-serif";
+const ffMono = "'Source Code Pro', 'Roboto Mono', monospace";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Project Sidebar header (Project LNB — matches LnbWorkspacePage 의 ProjectHeader)
@@ -87,57 +88,102 @@ export interface Workload {
   status: WorkloadStatus;
   /** Number of pods backing this workload. Inference: sum of deployed deployments' replicas. */
   podCount: number;
-  cpu:    { allocated: number; used: number; unit: string };
-  memory: { allocated: number; used: number; unit: string };
-  disk:   { allocated: number; used: number; unit: string };
-  gpu?:   { allocated: number; used: number; unit: string };
+  /**
+   * Per-resource request / limit / used (K8s convention).
+   * - allocated: K8s request — guaranteed minimum (used for scheduling / quota)
+   * - limit:     K8s limit   — hard cap above which the kernel throttles (CPU) or OOM-kills (Memory)
+   * - used:      observed runtime usage
+   */
+  cpu:    { allocated: number; limit: number; used: number; unit: string };
+  memory: { allocated: number; limit: number; used: number; unit: string };
+  disk:   { allocated: number; limit: number; used: number; unit: string };
+  gpu?:   { allocated: number; limit: number; used: number; unit: string };
   /** GPU model selected at deployment time (e.g., "NVIDIA A100 80GB"). Set only when gpu is allocated. */
   gpuModel?: string;
+  /** Total physical GPU count (per pod × replicas). Workload-level aggregate. */
+  gpuCount?: number;
+  /** Concrete UUID — only meaningful when bound to a single pod / single GPU. Multi-pod = "—". */
+  gpuUuid?: string;
+  /** Node placement — single node name when pinned, "—" when scheduled across nodes. */
+  gpuNode?: string;
+  /** GPU VRAM request/limit/used (GiB). Independent of GPU core count. */
+  gpuMemory?: { allocated: number; limit: number; used: number; unit: string };
+  /**
+   * Inference type only — per-deployment pod breakdown.
+   * Each pod row in the table belongs to a specific deployment, and the
+   * "Workload" column shows the deployment name (linking back to the same
+   * deployment detail for all of its replicas).
+   * Total replicas should equal podCount.
+   */
+  deployments?: { name: string; replicas: number }[];
 }
 
 // Workload list — names match APP_ITEMS.title (application) and SAMPLE_ENDPOINTS.name (inference).
 // podCount mirrors the corresponding asset's runtime topology (e.g., sum of deployed model replicas).
 export const SAMPLE_WORKLOADS: Workload[] = [
   // ── Application workloads (match ApplicationPage APP_ITEMS by title) ─────────
+  // Convention: limit ≈ 1.5–2× allocated (request) for CPU/Memory/Disk; GPU usually request=limit.
   { id: "w1", name: "NLP 실험 노트북", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
     podCount: 1,
-    cpu:{allocated: 4, used: 0.5, unit:"Cores"}, memory:{allocated: 16, used: 8, unit:"GiB"}, disk:{allocated: 50, used: 30, unit:"GiB"}, gpu:{allocated: 1, used: 0.7, unit:"GPUs"}, gpuModel: "NVIDIA RTX 2080 Ti" },
+    cpu:{allocated: 4, limit: 8, used: 0.5, unit:"Cores"}, memory:{allocated: 16, limit: 32, used: 8, unit:"GiB"}, disk:{allocated: 50, limit: 100, used: 30, unit:"GiB"},
+    gpu:{allocated: 1, limit: 1, used: 0.7, unit:"GPUs"}, gpuModel: "NVIDIA RTX 2080 Ti",
+    gpuCount: 1, gpuUuid: "GPU-a3f1c9", gpuNode: "node-04",
+    gpuMemory:{allocated: 11, limit: 11, used: 7.2, unit:"GiB"} },
   { id: "w2", name: "학습 파이프라인 오케스트레이터", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
     podCount: 2,
-    cpu:{allocated: 4, used: 2.5, unit:"Cores"}, memory:{allocated: 8, used: 5, unit:"GiB"}, disk:{allocated: 30, used: 15, unit:"GiB"} },
+    cpu:{allocated: 4, limit: 6, used: 2.5, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 5, unit:"GiB"}, disk:{allocated: 30, limit: 60, used: 15, unit:"GiB"} },
   { id: "w3", name: "데이터 수집 스케줄러", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
     podCount: 1,
-    cpu:{allocated: 2, used: 0.4, unit:"Cores"}, memory:{allocated: 8, used: 2.1, unit:"GiB"}, disk:{allocated: 30, used: 8, unit:"GiB"} },
+    cpu:{allocated: 2, limit: 4, used: 0.4, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 2.1, unit:"GiB"}, disk:{allocated: 30, limit: 60, used: 8, unit:"GiB"} },
   { id: "w4", name: "문서 임베딩 스토어", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
     podCount: 1,
-    cpu:{allocated: 2, used: 1.2, unit:"Cores"}, memory:{allocated: 8, used: 4, unit:"GiB"}, disk:{allocated: 100, used: 65, unit:"GiB"} },
+    cpu:{allocated: 2, limit: 4, used: 1.2, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 4, unit:"GiB"}, disk:{allocated: 100, limit: 150, used: 65, unit:"GiB"} },
   { id: "w5", name: "이미지 유사도 검색 엔진", workspace: "Data studio", project: "Vision Lab", type: "application", status: "running",
     podCount: 2,
-    cpu:{allocated: 4, used: 2.8, unit:"Cores"}, memory:{allocated: 16, used: 10, unit:"GiB"}, disk:{allocated: 50, used: 22, unit:"GiB"}, gpu:{allocated: 1, used: 0.4, unit:"GPUs"}, gpuModel: "NVIDIA A10" },
+    cpu:{allocated: 4, limit: 8, used: 2.8, unit:"Cores"}, memory:{allocated: 16, limit: 24, used: 10, unit:"GiB"}, disk:{allocated: 50, limit: 100, used: 22, unit:"GiB"},
+    gpu:{allocated: 1, limit: 1, used: 0.4, unit:"GPUs"}, gpuModel: "NVIDIA A10",
+    gpuCount: 1, gpuUuid: "—", gpuNode: "—",
+    gpuMemory:{allocated: 24, limit: 24, used: 9.5, unit:"GiB"} },
   { id: "w6", name: "데이터 전처리 노트북", workspace: "Data studio", project: "NLP Models", type: "application", status: "stopped",
     podCount: 0,
-    cpu:{allocated: 4, used: 0, unit:"Cores"}, memory:{allocated: 16, used: 0, unit:"GiB"}, disk:{allocated: 50, used: 8, unit:"GiB"} },
+    cpu:{allocated: 4, limit: 8, used: 0, unit:"Cores"}, memory:{allocated: 16, limit: 32, used: 0, unit:"GiB"}, disk:{allocated: 50, limit: 100, used: 8, unit:"GiB"} },
   { id: "w7", name: "챗봇 빌더", workspace: "Data studio", project: "NLP Models", type: "application", status: "failed",
     podCount: 0,
-    cpu:{allocated: 2, used: 0, unit:"Cores"}, memory:{allocated: 4, used: 0, unit:"GiB"}, disk:{allocated: 10, used: 0, unit:"GiB"} },
+    cpu:{allocated: 2, limit: 4, used: 0, unit:"Cores"}, memory:{allocated: 4, limit: 8, used: 0, unit:"GiB"}, disk:{allocated: 10, limit: 20, used: 0, unit:"GiB"} },
 
   // ── Inference workloads (match InferenceEndpointPage SAMPLE_ENDPOINTS by name) ──
   // podCount = Σ replicas of deployed deployments (see SAMPLE_DEPLOYMENTS in InferenceEndpointPage)
   { id: "w8", name: "ML Classifier Service", workspace: "Data studio", project: "NLP Models", type: "inference", status: "running",
     podCount: 4, // d1.replicas=2 + d2.replicas=1 + d3.replicas=1 (all deployed)
-    cpu:{allocated: 4, used: 3.0, unit:"Cores"}, memory:{allocated: 8, used: 6, unit:"GiB"}, disk:{allocated: 20, used: 12, unit:"GiB"}, gpu:{allocated: 1, used: 0.85, unit:"GPUs"}, gpuModel: "NVIDIA A10" },
+    cpu:{allocated: 4, limit: 6, used: 3.0, unit:"Cores"}, memory:{allocated: 8, limit: 12, used: 6, unit:"GiB"}, disk:{allocated: 20, limit: 40, used: 12, unit:"GiB"},
+    gpu:{allocated: 1, limit: 1, used: 0.85, unit:"GPUs"}, gpuModel: "NVIDIA A10",
+    gpuCount: 1, gpuUuid: "—", gpuNode: "—",
+    gpuMemory:{allocated: 24, limit: 24, used: 19.8, unit:"GiB"},
+    deployments: [
+      { name: "classifier-v1",     replicas: 2 },
+      { name: "classifier-v2",     replicas: 1 },
+      { name: "classifier-canary", replicas: 1 },
+    ] },
   { id: "w9", name: "Degraded Service API", workspace: "Data studio", project: "NLP Models", type: "inference", status: "running",
     podCount: 2, // d4.replicas=2 (deployed)
-    cpu:{allocated: 2, used: 1.5, unit:"Cores"}, memory:{allocated: 8, used: 5, unit:"GiB"}, disk:{allocated: 20, used: 10, unit:"GiB"} },
+    cpu:{allocated: 2, limit: 4, used: 1.5, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 5, unit:"GiB"}, disk:{allocated: 20, limit: 40, used: 10, unit:"GiB"},
+    deployments: [{ name: "tagger-v1", replicas: 2 }] },
   { id: "w10", name: "Multi-Model Vision API", workspace: "Data studio", project: "Vision Lab", type: "inference", status: "running",
     podCount: 3, // d5.replicas=2 + d6.replicas=1 (both deployed)
-    cpu:{allocated: 4, used: 3.1, unit:"Cores"}, memory:{allocated: 16, used: 12, unit:"GiB"}, disk:{allocated: 30, used: 18, unit:"GiB"}, gpu:{allocated: 2, used: 1.7, unit:"GPUs"}, gpuModel: "NVIDIA A100 40GB" },
+    cpu:{allocated: 4, limit: 6, used: 3.1, unit:"Cores"}, memory:{allocated: 16, limit: 24, used: 12, unit:"GiB"}, disk:{allocated: 30, limit: 50, used: 18, unit:"GiB"},
+    gpu:{allocated: 2, limit: 2, used: 1.7, unit:"GPUs"}, gpuModel: "NVIDIA A100 40GB",
+    gpuCount: 2, gpuUuid: "—", gpuNode: "—",
+    gpuMemory:{allocated: 80, limit: 80, used: 68.4, unit:"GiB"},
+    deployments: [
+      { name: "detector-base",  replicas: 2 },
+      { name: "detector-small", replicas: 1 },
+    ] },
   { id: "w11", name: "Progressing Deployment API", workspace: "Recsys", project: "Personalization", type: "inference", status: "pending",
     podCount: 0, // no deployed deployments
-    cpu:{allocated: 2, used: 0, unit:"Cores"}, memory:{allocated: 4, used: 0, unit:"GiB"}, disk:{allocated: 10, used: 0, unit:"GiB"} },
+    cpu:{allocated: 2, limit: 4, used: 0, unit:"Cores"}, memory:{allocated: 4, limit: 8, used: 0, unit:"GiB"}, disk:{allocated: 10, limit: 20, used: 0, unit:"GiB"} },
   { id: "w12", name: "Empty Endpoint (No Models)", workspace: "Recsys", project: "Personalization", type: "inference", status: "pending",
     podCount: 0, // no deployments
-    cpu:{allocated: 2, used: 0, unit:"Cores"}, memory:{allocated: 4, used: 0, unit:"GiB"}, disk:{allocated: 10, used: 0, unit:"GiB"} },
+    cpu:{allocated: 2, limit: 4, used: 0, unit:"Cores"}, memory:{allocated: 4, limit: 8, used: 0, unit:"GiB"}, disk:{allocated: 10, limit: 20, used: 0, unit:"GiB"} },
 ];
 
 const WORKLOAD_STATUS_MAP: Record<WorkloadStatus, { label: string; state: "success" | "stopped" | "error" | "pending" }> = {
@@ -152,16 +198,123 @@ const WORKLOAD_TYPE_LABEL: Record<WorkloadType, string> = {
   inference:   "Inference",
 };
 
+// ─── Pod-level row (output of expandToPods) ──────────────────────────────────
+// Each Workload fans out into N pod rows. parentName is the link target —
+// for application it's the workload name; for inference it's the deployment
+// name (so all replicas of the same deployment share a parent and link to
+// the same deployment detail).
+export interface PodTableRow {
+  podId: string;
+  podName: string;
+  workspace: string;
+  project: string;
+  status: WorkloadStatus;
+  /** The workload this pod belongs to — used for onRowClick navigation. */
+  parentWorkload: Workload;
+  /** Display name shown in the "Workload" column. */
+  parentName: string;
+  /** "application" → links to app detail; "inference-deployment" → links to deployment detail. */
+  parentKind: "application" | "inference-deployment";
+  /** For inference pods, the model deployment name (= parentName). Helpful for downstream routing. */
+  deploymentName?: string;
+  cpu:    { allocated: number; limit: number; used: number; unit: string };
+  memory: { allocated: number; limit: number; used: number; unit: string };
+  disk:   { allocated: number; limit: number; used: number; unit: string };
+  gpu?:   { allocated: number; limit: number; used: number; unit: string };
+  gpuModel?: string;
+  gpuCount?: number;
+  gpuUuid?: string;
+  gpuNode?: string;
+  gpuMemory?: { allocated: number; limit: number; used: number; unit: string };
+}
+
+/** Deterministic short hash from a string (used for pod suffix / GPU UUIDs). */
+function hashStr(s: string, len = 6): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  const chars = "0123456789abcdef";
+  let out = "";
+  let n = h;
+  for (let i = 0; i < len; i++) { out += chars[n % chars.length]; n = Math.floor(n / chars.length); }
+  return out;
+}
+
+/** Slice an aggregate resource into a per-pod portion (rounded to 1 decimal). */
+function perPod(value: number, total: number): number {
+  if (total <= 0) return 0;
+  const v = value / total;
+  return Math.round(v * 10) / 10;
+}
+
+/**
+ * Expand a Workload into pod-level rows.
+ * - Application: workload.podCount pods, all linking to the workload itself.
+ * - Inference:   distributed across `workload.deployments` (each deployment's replicas
+ *                share that deployment as their parent).
+ */
+export function expandToPods(w: Workload): PodTableRow[] {
+  if (w.podCount === 0) return [];
+  // Build a flat list of (deploymentName | null) per pod index.
+  let deploymentAssignment: (string | null)[] = [];
+  if (w.type === "inference" && w.deployments && w.deployments.length > 0) {
+    for (const d of w.deployments) {
+      for (let i = 0; i < d.replicas; i++) deploymentAssignment.push(d.name);
+    }
+    // Pad if replicas-sum < podCount (shouldn't happen with consistent data).
+    while (deploymentAssignment.length < w.podCount) deploymentAssignment.push(w.name);
+  } else {
+    deploymentAssignment = Array(w.podCount).fill(null);
+  }
+
+  const total = w.podCount;
+  const rows: PodTableRow[] = [];
+  for (let i = 0; i < total; i++) {
+    const deploymentName = deploymentAssignment[i];
+    const parentName = deploymentName ?? w.name;
+    const parentKind: PodTableRow["parentKind"] =
+      deploymentName ? "inference-deployment" : "application";
+    const podShortId = hashStr(`${w.id}-${i}`, 5);
+    const podName = `${parentName}-${podShortId.slice(0, 3)}-${String(i).padStart(2, "0")}`;
+    rows.push({
+      podId: `${w.id}-pod-${i}`,
+      podName,
+      workspace: w.workspace,
+      project: w.project,
+      status: w.status,
+      parentWorkload: w,
+      parentName,
+      parentKind,
+      deploymentName: deploymentName ?? undefined,
+      cpu:    { allocated: perPod(w.cpu.allocated, total),    limit: perPod(w.cpu.limit, total),    used: perPod(w.cpu.used, total),    unit: w.cpu.unit },
+      memory: { allocated: perPod(w.memory.allocated, total), limit: perPod(w.memory.limit, total), used: perPod(w.memory.used, total), unit: w.memory.unit },
+      disk:   { allocated: perPod(w.disk.allocated, total),   limit: perPod(w.disk.limit, total),   used: perPod(w.disk.used, total),   unit: w.disk.unit },
+      gpu: w.gpu
+        ? { allocated: perPod(w.gpu.allocated, total), limit: perPod(w.gpu.limit, total), used: perPod(w.gpu.used, total), unit: w.gpu.unit }
+        : undefined,
+      gpuModel: w.gpuModel,
+      gpuCount: w.gpu ? Math.max(1, Math.round((w.gpuCount ?? w.gpu.allocated) / total)) : undefined,
+      // Per-pod identifiers — synthesize deterministic UUID/node from the pod id.
+      gpuUuid: w.gpu ? `GPU-${hashStr(`${w.id}-uuid-${i}`, 6)}` : undefined,
+      gpuNode: w.gpu ? `node-${(parseInt(hashStr(`${w.id}-node-${i}`, 4), 16) % 8) + 1}` : undefined,
+      gpuMemory: w.gpuMemory
+        ? { allocated: perPod(w.gpuMemory.allocated, total), limit: perPod(w.gpuMemory.limit, total), used: perPod(w.gpuMemory.used, total), unit: w.gpuMemory.unit }
+        : undefined,
+    });
+  }
+  return rows;
+}
+
 type WorkloadSortKey =
-  | "name" | "type" | "status"
-  | "cpuAllocated" | "cpuUsed"
-  | "memAllocated" | "memUsed"
-  | "diskAllocated" | "diskUsed"
-  | "gpuAllocated" | "gpuUsed";
+  | "name" | "podName" | "status"
+  | "cpuAllocated" | "cpuLimit" | "cpuUsed" | "cpuReqRatio" | "cpuLimRatio"
+  | "memAllocated" | "memLimit" | "memUsed" | "memReqRatio" | "memLimRatio"
+  | "diskAllocated" | "diskLimit" | "diskUsed" | "diskReqRatio" | "diskLimRatio"
+  | "gpuAllocated" | "gpuLimit" | "gpuUsed" | "gpuReqRatio" | "gpuLimRatio";
 
 export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = false, showProject = false }: {
   workloads: Workload[];
   query: string;
+  /** Fired with the parent workload — multiple pod rows of the same parent all yield the same workload, so consumers can route to the same screen. */
   onRowClick?: (w: Workload) => void;
   /** 워크스페이스 컬럼 표시 (Runway Admin 등) */
   showWorkspace?: boolean;
@@ -170,24 +323,44 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
 }) {
   const { colors } = useTheme();
   const [sort, setSort] = useState<{ key: WorkloadSortKey; dir: "asc" | "desc" }>({ key: "cpuAllocated", dir: "desc" });
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+  // Fan workloads out into pod-level rows. Each row links to its parent
+  // (application or model deployment). Search query matches against parent
+  // name OR pod name.
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
-    let arr = workloads.filter((w) => w.name.toLowerCase().includes(q));
+    const allPods = workloads.flatMap((w) => expandToPods(w));
+    let arr = allPods.filter((p) =>
+      p.parentName.toLowerCase().includes(q) || p.podName.toLowerCase().includes(q)
+    );
     arr.sort((a, b) => {
-      const get = (w: Workload): number | string => {
+      const get = (p: PodTableRow): number | string => {
+        const ratio = (used: number, base: number) => (base > 0 ? used / base : -1);
         switch (sort.key) {
-          case "name":          return w.name;
-          case "type":          return w.type;
-          case "status":        return w.status;
-          case "cpuAllocated":  return w.cpu.allocated;
-          case "cpuUsed":       return w.cpu.used;
-          case "memAllocated":  return w.memory.allocated;
-          case "memUsed":       return w.memory.used;
-          case "diskAllocated": return w.disk.allocated;
-          case "diskUsed":      return w.disk.used;
-          case "gpuAllocated":  return w.gpu?.allocated ?? -1;
-          case "gpuUsed":       return w.gpu?.used ?? -1;
+          case "name":          return p.parentName;
+          case "podName":       return p.podName;
+          case "status":        return p.status;
+          case "cpuAllocated":  return p.cpu.allocated;
+          case "cpuLimit":      return p.cpu.limit;
+          case "cpuUsed":       return p.cpu.used;
+          case "cpuReqRatio":   return ratio(p.cpu.used, p.cpu.allocated);
+          case "cpuLimRatio":   return ratio(p.cpu.used, p.cpu.limit);
+          case "memAllocated":  return p.memory.allocated;
+          case "memLimit":      return p.memory.limit;
+          case "memUsed":       return p.memory.used;
+          case "memReqRatio":   return ratio(p.memory.used, p.memory.allocated);
+          case "memLimRatio":   return ratio(p.memory.used, p.memory.limit);
+          case "diskAllocated": return p.disk.allocated;
+          case "diskLimit":     return p.disk.limit;
+          case "diskUsed":      return p.disk.used;
+          case "diskReqRatio":  return ratio(p.disk.used, p.disk.allocated);
+          case "diskLimRatio":  return ratio(p.disk.used, p.disk.limit);
+          case "gpuAllocated":  return p.gpu?.allocated ?? -1;
+          case "gpuLimit":      return p.gpu?.limit ?? -1;
+          case "gpuUsed":       return p.gpu?.used ?? -1;
+          case "gpuReqRatio":   return p.gpu ? ratio(p.gpu.used, p.gpu.allocated) : -1;
+          case "gpuLimRatio":   return p.gpu ? ratio(p.gpu.used, p.gpu.limit) : -1;
         }
       };
       const va = get(a); const vb = get(b);
@@ -246,83 +419,190 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
 
   return (
     <div style={{ border: `1px solid ${colors.border.tertiary}`, borderRadius: borderRadius.xl, overflow: "auto", backgroundColor: colors.bg.primary }}>
-      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1200 }}>
+      <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 3000 }}>
         <thead>
           {/* Group header */}
           <tr>
             <th rowSpan={2} style={{ ...headerBase, position: "sticky", left: 0, zIndex: 2, minWidth: 220, borderRight: groupBorder }}>Workload</th>
             {showWorkspace && <th rowSpan={2} style={headerBase}>Workspace</th>}
             {showProject && <th rowSpan={2} style={headerBase}>Project</th>}
-            <th rowSpan={2} style={headerBase}>Type</th>
+            <th rowSpan={2} style={headerBase}>Pod</th>
             <th rowSpan={2} style={{ ...headerBase, borderRight: groupBorder }}>Status</th>
-            <th colSpan={2} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>CPU</th>
-            <th colSpan={2} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>Memory</th>
-            <th colSpan={2} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>Disk</th>
-            <th colSpan={3} style={{ ...headerBase, textAlign: "center" }}>GPU</th>
+            <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>CPU</th>
+            <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>Memory</th>
+            <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>Disk</th>
+            <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>GPU Core</th>
+            <th rowSpan={2} style={headerBase}>GPU Core Model</th>
+            <th rowSpan={2} style={headerBase}>GPU Core Count</th>
+            <th rowSpan={2} style={headerBase}>GPU Core UUID</th>
+            <th rowSpan={2} style={{ ...headerBase, borderRight: groupBorder }}>GPU Core Node</th>
+            <th colSpan={5} style={{ ...headerBase, textAlign: "center" }}>GPU Memory</th>
           </tr>
           {/* Sub headers (sortable) */}
           <tr>
-            <SortHeader k="cpuAllocated"  label="할당됨" />
-            <SortHeader k="cpuUsed"       label="사용됨" rightBorder />
-            <SortHeader k="memAllocated"  label="할당됨" />
-            <SortHeader k="memUsed"       label="사용됨" rightBorder />
-            <SortHeader k="diskAllocated" label="할당됨" />
-            <SortHeader k="diskUsed"      label="사용됨" rightBorder />
-            <th style={{ ...subHeaderBase, textAlign: "left" }}>Model</th>
-            <SortHeader k="gpuAllocated"  label="할당됨" />
-            <SortHeader k="gpuUsed"       label="사용됨" />
+            <SortHeader k="cpuAllocated"  label="요청" />
+            <SortHeader k="cpuLimit"      label="리밋" />
+            <SortHeader k="cpuUsed"       label="사용" />
+            <SortHeader k="cpuReqRatio"   label="요청대비" />
+            <SortHeader k="cpuLimRatio"   label="리밋대비" rightBorder />
+            <SortHeader k="memAllocated"  label="요청" />
+            <SortHeader k="memLimit"      label="리밋" />
+            <SortHeader k="memUsed"       label="사용" />
+            <SortHeader k="memReqRatio"   label="요청대비" />
+            <SortHeader k="memLimRatio"   label="리밋대비" rightBorder />
+            <SortHeader k="diskAllocated" label="요청" />
+            <SortHeader k="diskLimit"     label="리밋" />
+            <SortHeader k="diskUsed"      label="사용" />
+            <SortHeader k="diskReqRatio"  label="요청대비" />
+            <SortHeader k="diskLimRatio"  label="리밋대비" rightBorder />
+            <SortHeader k="gpuAllocated"  label="요청" />
+            <SortHeader k="gpuLimit"      label="리밋" />
+            <SortHeader k="gpuUsed"       label="사용" />
+            <SortHeader k="gpuReqRatio"   label="요청대비" />
+            <SortHeader k="gpuLimRatio"   label="리밋대비" rightBorder />
+            <th style={{ ...subHeaderBase, textAlign: "right" }}>요청</th>
+            <th style={{ ...subHeaderBase, textAlign: "right" }}>리밋</th>
+            <th style={{ ...subHeaderBase, textAlign: "right" }}>사용</th>
+            <th style={{ ...subHeaderBase, textAlign: "right" }}>요청대비</th>
+            <th style={{ ...subHeaderBase, textAlign: "right" }}>리밋대비</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map((w) => {
-            const st = WORKLOAD_STATUS_MAP[w.status];
-            const cpuLow  = isUnderutilized(w.cpu.allocated, w.cpu.used);
-            const memLow  = isUnderutilized(w.memory.allocated, w.memory.used);
-            const diskLow = isUnderutilized(w.disk.allocated, w.disk.used);
-            const gpuLow  = w.gpu ? isUnderutilized(w.gpu.allocated, w.gpu.used) : false;
+          {filtered.map((p) => {
+            const st = WORKLOAD_STATUS_MAP[p.status];
+            const cpuLow  = isUnderutilized(p.cpu.allocated, p.cpu.used);
+            const memLow  = isUnderutilized(p.memory.allocated, p.memory.used);
+            const diskLow = isUnderutilized(p.disk.allocated, p.disk.used);
+            const gpuLow  = p.gpu ? isUnderutilized(p.gpu.allocated, p.gpu.used) : false;
             return (
               <tr
-                key={w.id}
-                onClick={() => onRowClick?.(w)}
+                key={p.podId}
+                onClick={() => onRowClick?.(p.parentWorkload)}
                 style={{ cursor: onRowClick ? "pointer" : "default", borderTop: `1px solid ${colors.border.tertiary}` }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.bg.secondary)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                onMouseEnter={(e) => {
+                  if (onRowClick) {
+                    e.currentTarget.style.backgroundColor = colors.bg.secondary;
+                    setHoveredId(p.podId);
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  setHoveredId(null);
+                }}
               >
-                <td style={{ ...cellBase, position: "sticky", left: 0, zIndex: 1, backgroundColor: "inherit", borderRight: groupBorder, fontWeight: 500 }}>
-                  <span style={{ color: colors.text.interactive.runwayPrimary }}>{w.name}</span>
-                </td>
-                {showWorkspace && <td style={{ ...cellBase, color: colors.text.secondary }}>{w.workspace}</td>}
-                {showProject && <td style={{ ...cellBase, color: colors.text.secondary }}>{w.project}</td>}
-                <td style={cellBase}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: spacing[8] }}>
+                <td style={{
+                  ...cellBase,
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 1,
+                  backgroundColor: hoveredId === p.podId ? colors.bg.secondary : colors.bg.primary,
+                  borderRight: groupBorder,
+                  fontWeight: 500,
+                  transition: "background-color 0.12s ease",
+                }}>
+                  {/* Parent name — clickable target. Multiple pod rows share the
+                      same parent; clicking any one opens the same destination. */}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <Icon
-                      name={w.type === "application" ? "application" : "inference_endpoint"}
-                      size={16}
+                      name={p.parentKind === "application" ? "application" : "inference_endpoint"}
+                      size={14}
                       color={colors.icon.secondary}
                     />
-                    <span style={{ color: colors.text.secondary }}>{WORKLOAD_TYPE_LABEL[w.type]}</span>
+                    <span style={{
+                      color: onRowClick ? colors.text.interactive.runwayPrimary : colors.text.primary,
+                      textDecoration: onRowClick ? "underline" : "none",
+                      textUnderlineOffset: 2,
+                    }}>
+                      {p.parentName}
+                    </span>
+                    {onRowClick && (
+                      <span
+                        aria-hidden
+                        style={{
+                          display: "inline-flex",
+                          opacity: hoveredId === p.podId ? 1 : 0,
+                          transition: "opacity 0.12s ease",
+                        }}
+                      >
+                        <Icon name="chevron-right" size={14} color={colors.icon.secondary} />
+                      </span>
+                    )}
                   </span>
+                </td>
+                {showWorkspace && <td style={{ ...cellBase, color: colors.text.secondary }}>{p.workspace}</td>}
+                {showProject && <td style={{ ...cellBase, color: colors.text.secondary }}>{p.project}</td>}
+                <td style={{ ...cellBase, fontFamily: ffMono, fontSize: 12, color: colors.text.secondary }}>
+                  {p.podName}
                 </td>
                 <td style={{ ...cellBase, borderRight: groupBorder }}><StatusChip state={st.state} size="sm" label={st.label} /></td>
 
-                <ResCell value={w.cpu.allocated}  unit={w.cpu.unit} />
-                <ResCell value={w.cpu.used}       unit={w.cpu.unit}    underutilized={cpuLow} rightBorder />
+                <ResCell value={p.cpu.allocated}  unit={p.cpu.unit} />
+                <ResCell value={p.cpu.limit}      unit={p.cpu.unit} />
+                <ResCell value={p.cpu.used}       unit={p.cpu.unit}    underutilized={cpuLow} />
+                <RatioCell used={p.cpu.used} base={p.cpu.allocated} baseLabel="요청" baseValue={p.cpu.allocated} unit={p.cpu.unit} />
+                <RatioCell used={p.cpu.used} base={p.cpu.limit}     baseLabel="리밋" baseValue={p.cpu.limit}     unit={p.cpu.unit} rightBorder />
 
-                <ResCell value={w.memory.allocated} unit={w.memory.unit} />
-                <ResCell value={w.memory.used}      unit={w.memory.unit} underutilized={memLow} rightBorder />
+                <ResCell value={p.memory.allocated} unit={p.memory.unit} />
+                <ResCell value={p.memory.limit}     unit={p.memory.unit} />
+                <ResCell value={p.memory.used}      unit={p.memory.unit} underutilized={memLow} />
+                <RatioCell used={p.memory.used} base={p.memory.allocated} baseLabel="요청" baseValue={p.memory.allocated} unit={p.memory.unit} />
+                <RatioCell used={p.memory.used} base={p.memory.limit}     baseLabel="리밋" baseValue={p.memory.limit}     unit={p.memory.unit} rightBorder />
 
-                <ResCell value={w.disk.allocated} unit={w.disk.unit} />
-                <ResCell value={w.disk.used}      unit={w.disk.unit}    underutilized={diskLow} rightBorder />
+                <ResCell value={p.disk.allocated} unit={p.disk.unit} />
+                <ResCell value={p.disk.limit}     unit={p.disk.unit} />
+                <ResCell value={p.disk.used}      unit={p.disk.unit}    underutilized={diskLow} />
+                <RatioCell used={p.disk.used} base={p.disk.allocated} baseLabel="요청" baseValue={p.disk.allocated} unit={p.disk.unit} />
+                <RatioCell used={p.disk.used} base={p.disk.limit}     baseLabel="리밋" baseValue={p.disk.limit}     unit={p.disk.unit} rightBorder />
 
-                {w.gpu ? (
+                {p.gpu ? (
                   <>
-                    <td style={{ ...cellBase, color: colors.text.secondary }}>{w.gpuModel ?? "—"}</td>
-                    <ResCell value={w.gpu.allocated} unit={w.gpu.unit} />
-                    <ResCell value={w.gpu.used}      unit={w.gpu.unit}     underutilized={gpuLow} />
+                    {/* GPU Core group (5) */}
+                    <ResCell value={p.gpu.allocated} unit={p.gpu.unit} />
+                    <ResCell value={p.gpu.limit}     unit={p.gpu.unit} />
+                    <ResCell value={p.gpu.used}      unit={p.gpu.unit}     underutilized={gpuLow} />
+                    <RatioCell used={p.gpu.used} base={p.gpu.allocated} baseLabel="요청" baseValue={p.gpu.allocated} unit={p.gpu.unit} />
+                    <RatioCell used={p.gpu.used} base={p.gpu.limit}     baseLabel="리밋" baseValue={p.gpu.limit}     unit={p.gpu.unit} rightBorder />
+                    {/* GPU metadata */}
+                    <td style={{ ...cellBase, color: colors.text.secondary }}>{p.gpuModel ?? "—"}</td>
+                    <td style={{ ...cellBase, textAlign: "right", fontFamily: ffMono }}>{p.gpuCount ?? "—"}</td>
+                    <td style={{ ...cellBase, fontFamily: ffMono, color: colors.text.secondary }}>{p.gpuUuid ?? "—"}</td>
+                    <td style={{ ...cellBase, fontFamily: ffMono, borderRight: groupBorder }}>{p.gpuNode ?? "—"}</td>
+                    {/* GPU Memory group (5) */}
+                    {p.gpuMemory ? (
+                      <>
+                        <ResCell value={p.gpuMemory.allocated} unit={p.gpuMemory.unit} />
+                        <ResCell value={p.gpuMemory.limit}     unit={p.gpuMemory.unit} />
+                        <ResCell value={p.gpuMemory.used}      unit={p.gpuMemory.unit} />
+                        <RatioCell used={p.gpuMemory.used} base={p.gpuMemory.allocated} baseLabel="요청" baseValue={p.gpuMemory.allocated} unit={p.gpuMemory.unit} />
+                        <RatioCell used={p.gpuMemory.used} base={p.gpuMemory.limit}     baseLabel="리밋" baseValue={p.gpuMemory.limit}     unit={p.gpuMemory.unit} />
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>—</td>
+                        <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>—</td>
+                        <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>—</td>
+                        <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>—</td>
+                        <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>—</td>
+                      </>
+                    )}
                   </>
                 ) : (
                   <>
+                    {/* Empty GPU Core (5) */}
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic", borderRight: groupBorder }}>N/A</td>
+                    {/* Empty GPU metadata (4) */}
                     <td style={{ ...cellBase, color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, color: colors.text.tertiary, fontStyle: "italic", borderRight: groupBorder }}>N/A</td>
+                    {/* Empty GPU Memory (5) */}
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
+                    <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
                     <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
                     <td style={{ ...cellBase, textAlign: "right", color: colors.text.tertiary, fontStyle: "italic" }}>N/A</td>
                   </>
@@ -332,8 +612,8 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
           })}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={11 + (showWorkspace ? 1 : 0) + (showProject ? 1 : 0)} style={{ ...cellBase, textAlign: "center", color: colors.text.tertiary, padding: `${spacing[32]} ${spacing[12]}` }}>
-                일치하는 워크로드가 없습니다.
+              <td colSpan={3 /* base: Workload, Pod, Status */ + 5 + 5 + 5 /* CPU/Mem/Disk */ + 5 /* GPU Core */ + 4 /* GPU metadata */ + 5 /* GPU Memory */ + (showWorkspace ? 1 : 0) + (showProject ? 1 : 0)} style={{ ...cellBase, textAlign: "center", color: colors.text.tertiary, padding: `${spacing[32]} ${spacing[12]}` }}>
+                일치하는 파드가 없습니다.
               </td>
             </tr>
           )}
@@ -350,18 +630,19 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}
       >
-        <span>{filtered.length} workload(s)</span>
+        <span>{filtered.length} pod(s)</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: spacing[8], color: colors.text.tertiary }}>
           <span style={{ display: "inline-block", width: spacing[8], height: spacing[8], borderRadius: borderRadius.rounded, backgroundColor: colors.bg.warning }} />
-          저사용 워크로드 (할당 대비 사용률 10% 미만)
+          저사용 파드 (요청 대비 사용률 10% 미만)
         </span>
       </div>
     </div>
   );
 }
 
-function ResCell({ value, unit, underutilized = false, rightBorder = false }: { value: number; unit: string; underutilized?: boolean; rightBorder?: boolean }) {
+export function ResCell({ value, unit, underutilized = false, rightBorder = false }: { value: number | null; unit: string; underutilized?: boolean; rightBorder?: boolean }) {
   const { colors } = useTheme();
+  const isNull = value === null;
   return (
     <td style={{
       padding: spacing[12],
@@ -369,11 +650,97 @@ function ResCell({ value, unit, underutilized = false, rightBorder = false }: { 
       fontFamily: ff,
       whiteSpace: "nowrap",
       textAlign: "right",
-      color: underutilized ? colors.text.warning : colors.text.primary,
-      fontWeight: underutilized ? body.lg.semibold.fontWeight : body.lg.regular.fontWeight,
+      color: isNull ? colors.text.tertiary : underutilized ? colors.text.warning : colors.text.primary,
+      fontStyle: isNull ? "italic" : undefined,
+      fontWeight: underutilized && !isNull ? body.lg.semibold.fontWeight : body.lg.regular.fontWeight,
       borderRight: rightBorder ? `1px solid ${colors.border.secondary}` : undefined,
     }}>
-      {value} {unit}
+      {isNull ? "—" : `${value} ${unit}`}
+    </td>
+  );
+}
+
+/**
+ * Compact ratio cell — shows used/base as a percentage with a small bar.
+ * - When base is 0 (no allocation): "—"
+ * - When ratio > 100%: red (over-limit / bursting)
+ * - When ratio < 10%: warn color (저사용)
+ * - Tooltip-style title shows the absolute "used / base unit" breakdown.
+ */
+export function RatioCell({
+  used,
+  base,
+  baseLabel,
+  baseValue,
+  unit,
+  rightBorder = false,
+}: {
+  used: number;
+  base: number | null;
+  baseLabel: string;
+  baseValue: number | null;
+  unit: string;
+  rightBorder?: boolean;
+}) {
+  const { colors } = useTheme();
+  if (base === null || base <= 0) {
+    return (
+      <td style={{
+        padding: spacing[12], fontSize: body.lg.regular.fontSize, fontFamily: ff,
+        whiteSpace: "nowrap", textAlign: "right",
+        color: colors.text.tertiary, fontStyle: "italic",
+        borderRight: rightBorder ? `1px solid ${colors.border.secondary}` : undefined,
+      }}>
+        —
+      </td>
+    );
+  }
+  const pct = (used / base) * 100;
+  const display = Math.round(pct * 10) / 10;
+  // Utilization-band coloring (matches monitoring convention):
+  //   < 70%: 여유 (success / green)
+  //   70-90%: 주의 (warning / yellow)
+  //   ≥ 90%: 임박·초과 (danger / red)
+  const danger = pct >= 90;
+  const warn   = pct >= 70 && pct < 90;
+  const fg =
+    danger ? colors.text.danger :
+    warn   ? colors.text.warning :
+    colors.text.success;
+  const barFill =
+    danger ? colors.bg.danger :
+    warn   ? colors.bg.warning :
+    colors.bg.success;
+
+  return (
+    <td
+      title={`${baseLabel} ${baseValue} ${unit} 대비 사용 ${used} ${unit} (${display}%)`}
+      style={{
+        padding: spacing[12],
+        fontSize: body.lg.regular.fontSize,
+        fontFamily: ff,
+        whiteSpace: "nowrap",
+        textAlign: "right",
+        color: fg,
+        fontWeight: danger || warn ? body.lg.semibold.fontWeight : body.lg.regular.fontWeight,
+        borderRight: rightBorder ? `1px solid ${colors.border.secondary}` : undefined,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        <span style={{ fontFamily: ffMono }}>{display}%</span>
+        <span style={{
+          width: 56, height: 4, borderRadius: borderRadius.rounded,
+          backgroundColor: colors.bg.tertiary, overflow: "hidden",
+        }}>
+          <span style={{
+            display: "block",
+            width: `${Math.min(100, pct)}%`,
+            height: "100%",
+            backgroundColor: barFill,
+            transition: "width 0.2s ease",
+          }} />
+        </span>
+      </div>
     </td>
   );
 }

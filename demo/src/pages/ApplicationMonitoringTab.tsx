@@ -276,7 +276,7 @@ function PodsTable({
                   borderTop: `1px solid ${colors.border.tertiary}`,
                 }}
               >
-                <td style={{ ...cellBase, fontWeight: 500, color: colors.text.interactive.runwayPrimary }}>{p.name}</td>
+                <td style={{ ...cellBase, fontWeight: 500, color: colors.text.primary }}>{p.name}</td>
                 <td style={cellBase}><StatusChip state={st.state} size="sm" label={st.label} /></td>
                 <UsageCell value={p.cpu.usage}     unit="Cores" over={overCpu} />
                 <td style={{ ...cellBase, textAlign: "right", color: colors.text.secondary }}>{p.cpu.limit} Cores</td>

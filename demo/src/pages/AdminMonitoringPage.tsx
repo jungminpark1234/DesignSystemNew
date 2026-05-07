@@ -524,6 +524,7 @@ const WORKLOAD_SUB_COLS = [
 
 export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project", workloadStats }: { rows: ProjectRow[]; query: string; onRowClick?: (r: ProjectRow) => void; leftHeader?: string; workloadStats?: Record<string, WorkloadStats> }) {
   const { colors } = useTheme();
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const filtered = rows.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()));
   const showWorkloads = !!workloadStats;
 
@@ -609,38 +610,48 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project",
           </tr>
         </thead>
         <tbody>
-          {filtered.map((row, ri) => (
+          {filtered.map((row, ri) => {
+            const isHovered = hoveredRow === row.name;
+            const stickyBg = onRowClick && isHovered ? colors.bg.secondary : colors.bg.primary;
+            return (
             <tr
               key={row.name}
               onClick={() => onRowClick?.(row)}
+              onMouseEnter={() => onRowClick && setHoveredRow(row.name)}
+              onMouseLeave={() => setHoveredRow(null)}
               style={{
                 cursor: onRowClick ? "pointer" : "default",
                 borderTop: `1px solid ${colors.border.tertiary}`,
+                backgroundColor: onRowClick && isHovered ? colors.bg.secondary : "transparent",
+                transition: "background-color 0.12s ease",
               }}
             >
               <td
                 style={{
                   ...cellBase,
                   position: "sticky", left: 0, zIndex: 1,
-                  backgroundColor: colors.bg.primary,
+                  backgroundColor: stickyBg,
                   borderTop: ri === 0 ? undefined : `1px solid ${colors.border.tertiary}`,
                   borderRight: groupBorder,
                   fontWeight: 500,
+                  transition: "background-color 0.12s ease",
                 }}
               >
-                <a
-                  href="#"
-                  onClick={(e) => { e.preventDefault(); onRowClick?.(row); }}
-                  style={{
-                    color: colors.text.interactive.runwayPrimary,
-                    textDecoration: "none",
-                    fontWeight: 500,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
-                  onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
-                >
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: colors.text.primary, fontWeight: 500 }}>
                   {row.name}
-                </a>
+                  {onRowClick && (
+                    <span
+                      aria-hidden
+                      style={{
+                        display: "inline-flex",
+                        opacity: isHovered ? 1 : 0,
+                        transition: "opacity 0.12s ease",
+                      }}
+                    >
+                      <Icon name="chevron-right" size={14} color={colors.icon.secondary} />
+                    </span>
+                  )}
+                </span>
               </td>
               {showWorkloads && (() => {
                 const w = workloadStats?.[row.name] ?? { total: 0, avgUtil: "—", idle: 0 };
@@ -677,7 +688,8 @@ export function ProjectsTable({ rows, query, onRowClick, leftHeader = "Project",
                 ))
               ))}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       <div

@@ -33,6 +33,7 @@ import {
 import { ResourceGuideModal } from "../components/ResourceGuideModal";
 import { ApplicationMonitoringTab } from "./ApplicationMonitoringTab";
 import { PaginationBar } from "./DataConnectionsPage";
+import { DeploymentDetailView, DeploymentHistoryView, ActiveDeploymentsCard, ScalingConstraintBanner, TrafficEditDrawer, ScalingPolicyForm, DEMO_ACTIVE_DEPLOYMENTS, DEMO_DEPLOYMENT_DETAIL, DEMO_EVENTS, type ActiveDeployment, type DeploymentEvent, type DeploymentSnapshot, type ScalingPolicy, type TrafficEditResult } from "./DeploymentDetailPage";
 import logoTriton from "@ds/icons/catalog/triton.svg";
 import logoMlserver from "@ds/icons/catalog/mlserver.svg";
 import logoProtobuf from "@ds/icons/platform/protobuf.svg";
@@ -115,11 +116,22 @@ interface ModelDeployment {
   autoScaling?: { min: number; max: number };
 }
 
+// Normalize a single weight against a group total (matches Edit Traffic drawer's
+// normalize behavior). When total is 0, all results are 0.
+function normalizeWeightToPct(weight: number, totalWeight: number): number {
+  if (totalWeight <= 0) return 0;
+  const pct = (weight / totalWeight) * 100;
+  // Trim floating point noise; round to 1 decimal.
+  return Math.round(pct * 10) / 10;
+}
+
 const SAMPLE_DEPLOYMENTS: Record<string, ModelDeployment[]> = {
   "ml-classifier-service": [
-    { id: "d1", name: "classifier-v1",  deployed: true, weight: 70, effective: 70, createdAt: "2024-10-07 15:31:53", creator: "Jungmin Park", creatorInitial: "JP", replicas: 2, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 10 } },
-    { id: "d2", name: "classifier-v2",  deployed: true, weight: 20, effective: 20, createdAt: "2024-10-07 14:37:26", creator: "Jungmin Park", creatorInitial: "JP", replicas: 1, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 10 } },
-    { id: "d3", name: "classifier-canary", deployed: true, weight: 10, effective: 10, createdAt: "2024-07-11 11:34:11", creator: "Jungmin Park", creatorInitial: "JP", replicas: 1, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 10 } },
+    // Source of truth: derived from DeploymentDetailPage's DEMO_ACTIVE_DEPLOYMENTS / DEMO_EVENTS
+    // (배포 이력 audit log에서 가장 최근 상태 그대로 반영)
+    { id: "d1", name: "classifier-v1",     deployed: true, weight: 70, effective: 70, createdAt: "2024-10-07 15:31:53", creator: "Jungmin Park", creatorInitial: "JP", replicas: 2, deploymentNumber: 74, trafficWeight: 1, autoScaling: { min: 1, max: 5 } },
+    { id: "d2", name: "classifier-v2",     deployed: true, weight: 0,  effective: 0,  createdAt: "2024-12-15 09:15:30", creator: "Jungmin Park", creatorInitial: "JP", replicas: 1, deploymentNumber: 52, trafficWeight: 1 /* manual scaling */ },
+    { id: "d3", name: "classifier-canary", deployed: true, weight: 10, effective: 10, createdAt: "2025-01-15 14:32:11", creator: "Jungmin Park", creatorInitial: "JP", replicas: 3, deploymentNumber: 41, trafficWeight: 1, autoScaling: { min: 1, max: 3 } },
   ],
   "degraded-service-api": [
     { id: "d4", name: "tagger-v1", deployed: true, weight: 100, effective: 100, createdAt: "2024-10-07 14:37:26", creator: "Jungmin Park", creatorInitial: "JP", replicas: 2, deploymentNumber: 91, trafficWeight: 1, autoScaling: { min: 1, max: 5 } },
@@ -379,17 +391,31 @@ function EndpointListView({
 // Endpoint detail page
 // ═══════════════════════════════════════════════════════════════════════════════
 function EndpointDetailView({
-  endpoint, onDeployModel, onEditTraffic, initialDetailTab,
+  endpoint, onDeployModel, onEditTraffic, initialDetailTab, onSelectDeployment, activeDeployments,
+  snapshots, onTakeSnapshot, onRollback, rollbackToast, events,
 }: {
-  endpoint: InferenceEndpoint; onDeployModel: () => void; onEditTraffic?: () => void; initialDetailTab?: "overview" | "monitoring";
+  endpoint: InferenceEndpoint;
+  onDeployModel: () => void;
+  onEditTraffic?: () => void;
+  initialDetailTab?: "overview" | "history" | "monitoring";
+  onSelectDeployment?: (d: ModelDeployment) => void;
+  activeDeployments: ActiveDeployment[];
+  snapshots?: DeploymentSnapshot[];
+  onTakeSnapshot?: () => void;
+  onRollback?: (snapshotId: string) => void;
+  rollbackToast?: string | null;
+  events?: DeploymentEvent[];
 }) {
   const { colors } = useTheme();
   const deployments = SAMPLE_DEPLOYMENTS[endpoint.id] ?? [];
   const [query, setQuery] = useState("");
   const [deployedFilter, setDeployedFilter] = useState<"all" | "deployed" | "undeployed">("all");
-  const [detailTab, setDetailTab] = useState<"overview" | "monitoring">(initialDetailTab ?? "overview");
+  const [detailTab, setDetailTab] = useState<"overview" | "history" | "monitoring">(initialDetailTab ?? "overview");
   const [deploymentView, setDeploymentView] = useState<"topology" | "table">("table");
   const [monitoringDeployment, setMonitoringDeployment] = useState<string>("all");
+  const [trafficEditOpen, setTrafficEditOpen] = useState(false);
+  const [trafficSavedToast, setTrafficSavedToast] = useState<string | null>(null);
+
   const filtered = deployments.filter((d) => {
     if (!d.name.toLowerCase().includes(query.toLowerCase())) return false;
     if (deployedFilter === "deployed" && !d.deployed) return false;
@@ -404,6 +430,31 @@ function EndpointDetailView({
   };
   const cell: React.CSSProperties = {
     padding: "12px", fontSize: 13, color: colors.text.primary, fontFamily: ff, whiteSpace: "nowrap",
+  };
+
+  // Active deployments mapped from current data — passed to traffic edit drawer.
+  // trafficPct shown there as "from %" in the diff is auto-normalized too.
+  const totalWeightForEdit = filtered.reduce((s, d) => s + d.weight, 0);
+  const activeForTrafficEdit: ActiveDeployment[] = filtered.map((d) => {
+    const normalizedPct = normalizeWeightToPct(d.weight, totalWeightForEdit);
+    const known = activeDeployments.find((a) => a.name === d.name);
+    if (known) return { ...known, trafficWeight: d.weight, trafficPct: normalizedPct };
+    return {
+      name: d.name, version: "—", buildNumber: d.deploymentNumber ?? 0,
+      trafficWeight: d.weight, trafficPct: normalizedPct, currentPods: d.replicas ?? 1,
+      scaling: { mode: "manual", replicas: d.replicas ?? 1 },
+      scalingStatus: null,
+      deployedAt: d.createdAt, performer: d.creator, performerInitial: d.creatorInitial,
+    };
+  });
+
+  const handleTrafficSave = (result: TrafficEditResult) => {
+    setTrafficEditOpen(false);
+    const lines = result.updates.map((u) => `${u.name} ${u.from}% → ${u.to}%`).join(", ");
+    const reasonSuffix = result.reason ? ` · 설명 "${result.reason}"` : "";
+    setTrafficSavedToast(`트래픽 변경 저장됨 — ${lines}${reasonSuffix}`);
+    window.setTimeout(() => setTrafficSavedToast(null), 4500);
+    onEditTraffic?.();
   };
 
   return (
@@ -422,8 +473,8 @@ function EndpointDetailView({
         <>
           <SecondaryButton
             label="Edit traffic"
-            onClick={() => onEditTraffic?.()}
-            icon={<Icon name="setting" size={16} color="currentColor" />}
+            onClick={() => setTrafficEditOpen(true)}
+            icon={<Icon name="traffic" size={16} color="currentColor" />}
           />
           <PrimaryButton
             label="Deploy model"
@@ -433,19 +484,22 @@ function EndpointDetailView({
         </>
       }
     >
-      {/* Detail tabs (Overview / Monitoring) */}
+      {/* Detail tabs (개요 / 배포 이력 / 모니터링) */}
       <div style={{ alignSelf: "flex-start" }}>
         <Tabs
           items={[
-            { key: "overview",   label: "Overview" },
-            { key: "monitoring", label: "Monitoring" },
+            { key: "overview",   label: "개요" },
+            { key: "history",    label: "배포 이력" },
+            { key: "monitoring", label: "모니터링" },
           ]}
           selectedKey={detailTab}
-          onChange={(k) => setDetailTab(k as "overview" | "monitoring")}
+          onChange={(k) => setDetailTab(k as "overview" | "history" | "monitoring")}
         />
       </div>
 
-      {detailTab === "monitoring" ? (() => {
+      {detailTab === "history" ? (
+        <DeploymentHistoryView events={events} />
+      ) : detailTab === "monitoring" ? (() => {
         // Show all configured deployments in the scope dropdown (matches Model Deployments table count),
         // but resources/pods only come from deployed=true entries.
         const deployedDeployments = deployments.filter((d) => d.deployed);
@@ -483,7 +537,7 @@ function EndpointDetailView({
               <InfoRow label="Endpoint ID">
                 <span style={{ fontFamily: "'Roboto Mono', monospace", fontSize: 13 }}>{endpoint.id}</span>
               </InfoRow>
-              <InfoRow label="Inference URL">
+              <InfoRow label="REST endpoint URL">
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: 4,
                   padding: 8, borderRadius: 6,
@@ -496,9 +550,9 @@ function EndpointDetailView({
                   <CopyButton text={endpoint.inferenceUrl} size={24} iconSize={20} />
                 </div>
               </InfoRow>
-              <InfoRow label="gRPC endpoint Address">
+              <InfoRow label="gRPC endpoint URL">
                 <div style={{
-                  display: "flex", alignItems: "flex-start", gap: 4,
+                  display: "flex", alignItems: "center", gap: 4,
                   padding: 8, borderRadius: 6,
                   backgroundColor: colors.bg.secondary,
                   border: `1px solid ${colors.border.tertiary}`,
@@ -563,8 +617,8 @@ function EndpointDetailView({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {([
-              { key: "table",    icon: "table" as const,   label: "Table view" },
-              { key: "topology", icon: "Traffic" as const, label: "Topology view" },
+              { key: "table",    icon: "table" as const,   label: "테이블 뷰" },
+              { key: "topology", icon: "traffic" as const, label: "토폴로지 뷰" },
             ] as const).map(({ key, icon, label }) => (
               <Tooltip key={key} content={label} direction="below-center">
                 <IconButton
@@ -610,86 +664,118 @@ function EndpointDetailView({
           )
         )}
 
-        {/* Table view */}
-        {deploymentView === "table" && (filtered.length === 0 ? (
-          <div
-            style={{
-              border: `1px solid ${colors.border.tertiary}`,
-              borderRadius: 12,
-              backgroundColor: colors.bg.secondary,
-              padding: 60,
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
-            }}
-          >
-            <div style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.bg.tertiary, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name="inference_endpoint" size={24} color={colors.icon.secondary} />
+        {/* List view — rich active deployments card (shared with 배포 이력 tab) */}
+        {deploymentView === "table" && (() => {
+          // Auto-normalize weights → effective % so total sums to ~100%, regardless
+          // of whether the input weights happened to sum to 100.
+          const totalWeight = filtered.reduce((s, d) => s + d.weight, 0);
+          // Map ModelDeployment[] → ActiveDeployment[] using activeDeployments state as the
+          // scaling source of truth, falling back to ModelDeployment fields for unknowns.
+          const activeMapped: ActiveDeployment[] = filtered.map((d) => {
+            const normalizedPct = normalizeWeightToPct(d.weight, totalWeight);
+            const known = activeDeployments.find((a) => a.name === d.name);
+            if (known) {
+              return { ...known, trafficWeight: d.weight, trafficPct: normalizedPct };
+            }
+            // Fallback for endpoints without rich scaling data yet
+            return {
+              name: d.name,
+              version: "—",
+              buildNumber: d.deploymentNumber ?? 0,
+              trafficWeight: d.weight,
+              trafficPct: normalizedPct,
+              currentPods: d.replicas ?? 1,
+              scaling: { mode: "manual", replicas: d.replicas ?? 1 },
+              scalingStatus: null,
+              deployedAt: d.createdAt,
+              performer: d.creator,
+              performerInitial: d.creatorInitial,
+            };
+          });
+          return activeMapped.length === 0 ? (
+            <div
+              style={{
+                border: `1px solid ${colors.border.tertiary}`,
+                borderRadius: 12,
+                backgroundColor: colors.bg.secondary,
+                padding: 60,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+              }}
+            >
+              <div style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.bg.tertiary, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="inference_endpoint" size={24} color={colors.icon.secondary} />
+              </div>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>
+                  {deployments.length === 0 ? "No models deployed" : "No matching deployments"}
+                </span>
+                <span style={{ fontSize: 13, color: colors.text.tertiary, fontFamily: ff }}>
+                  {deployments.length === 0
+                    ? "This endpoint has no deployed models yet. Deploy your first model to start serving inference requests."
+                    : "Try a different search term."}
+                </span>
+              </div>
             </div>
-            <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: colors.text.primary, fontFamily: ff }}>
-                {deployments.length === 0 ? "No models deployed" : "No matching deployments"}
-              </span>
-              <span style={{ fontSize: 13, color: colors.text.tertiary, fontFamily: ff }}>
-                {deployments.length === 0
-                  ? "This endpoint has no deployed models yet. Deploy your first model to start serving inference requests."
-                  : "Try a different search term."}
-              </span>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <ScalingConstraintBanner deployments={activeMapped} />
+              <ActiveDeploymentsCard
+                deployments={activeMapped}
+                snapshots={snapshots}
+                onTakeSnapshot={onTakeSnapshot}
+                onRollback={onRollback}
+                title="활성 배포"
+                onRowClick={(a) => {
+                  const md = filtered.find((d) => d.name === a.name);
+                  if (md) onSelectDeployment?.(md);
+                }}
+              />
             </div>
-          </div>
-        ) : (
-          <div style={{ border: `1px solid ${colors.border.tertiary}`, borderRadius: 12, overflow: "auto", backgroundColor: colors.bg.primary }}>
-            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 880 }}>
-              <thead>
-                <tr>
-                  <th style={headerCell}>Model deployment name</th>
-                  <th style={headerCell}>Deployed</th>
-                  <th style={{ ...headerCell, textAlign: "right" }}>Weight</th>
-                  <th style={headerCell}>Effective</th>
-                  <th style={headerCell}>생성일 ↓</th>
-                  <th style={headerCell}>생성자</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((d) => (
-                  <tr key={d.id} style={{ borderTop: `1px solid ${colors.border.tertiary}` }}>
-                    <td style={{ ...cell, fontWeight: 500 }}>{d.name}</td>
-                    <td style={cell}>
-                      {d.deployed ? (
-                        <Icon name="check" size={16} color={colors.icon.success} />
-                      ) : (
-                        <span style={{ color: colors.text.tertiary }}>-</span>
-                      )}
-                    </td>
-                    <td style={{ ...cell, textAlign: "right", color: colors.text.secondary }}>{d.weight}%</td>
-                    <td style={cell}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 140 }}>
-                        <span style={{ minWidth: 32, color: colors.text.primary }}>{d.effective}%</span>
-                        <div style={{ flex: 1, height: 6, borderRadius: 9999, backgroundColor: colors.bg.neutral, overflow: "hidden" }}>
-                          <div
-                            style={{
-                              width: `${Math.min(100, d.effective)}%`,
-                              height: "100%",
-                              backgroundColor: colors.bg.interactive.runwayPrimary,
-                              borderRadius: 9999,
-                              transition: "width 0.4s ease",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ ...cell, color: colors.text.secondary }}>{d.createdAt}</td>
-                    <td style={cell}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        <Avatar initial={d.creatorInitial} size="sm" color={getAvatarColorFromInitial(d.creatorInitial)} />
-                        <span>{d.creator}</span>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
+          );
+        })()}
       </DetailContentWithSidebar>
+      )}
+      <TrafficEditDrawer
+        open={trafficEditOpen}
+        onClose={() => setTrafficEditOpen(false)}
+        deployments={activeForTrafficEdit}
+        onSave={handleTrafficSave}
+      />
+      {trafficSavedToast && (
+        <div
+          style={{
+            position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+            padding: "12px 16px",
+            borderRadius: 8,
+            border: `1px solid ${colors.border.tertiary}`,
+            backgroundColor: colors.bg.primary,
+            color: colors.text.primary,
+            fontFamily: ff, fontSize: 13,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
+            display: "flex", alignItems: "center", gap: 8, maxWidth: 520,
+          }}
+        >
+          <Icon name="success-fill" size={16} color={colors.icon.success} />
+          {trafficSavedToast}
+        </div>
+      )}
+      {rollbackToast && (
+        <div
+          style={{
+            position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+            padding: "12px 16px",
+            borderRadius: 8,
+            border: `1px solid ${colors.border.tertiary}`,
+            backgroundColor: colors.bg.primary,
+            color: colors.text.primary,
+            fontFamily: ff, fontSize: 13,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
+            display: "flex", alignItems: "center", gap: 8, maxWidth: 520,
+          }}
+        >
+          <Icon name="success-fill" size={16} color={colors.icon.success} />
+          {rollbackToast}
+        </div>
       )}
     </DetailPage>
   );
@@ -702,7 +788,13 @@ function TopologyView({ endpoint, deployments }: { endpoint: InferenceEndpoint; 
   const { colors } = useTheme();
   const activeColor = colors.bg.interactive.runwayPrimary;
   const idleColor   = colors.border.secondary;
-  const anyActive   = deployments.some((d) => d.effective > 0);
+  // Normalize weights → effective % so total always sums to ~100% (auto-normalize).
+  const totalWeight = deployments.reduce((s, d) => s + d.weight, 0);
+  const normalizedDeployments = deployments.map((d) => ({
+    ...d,
+    effective: normalizeWeightToPct(d.weight, totalWeight),
+  }));
+  const anyActive = normalizedDeployments.some((d) => d.effective > 0);
 
   return (
     <div
@@ -736,19 +828,19 @@ function TopologyView({ endpoint, deployments }: { endpoint: InferenceEndpoint; 
       <FlowLineV height={28} active={anyActive} activeColor={activeColor} idleColor={idleColor} />
 
       {/* Branch L-shapes — each deployment has its own (horizontal segment + vertical drop) colored per its effective traffic */}
-      <BranchLayer deployments={deployments} activeColor={activeColor} idleColor={idleColor} />
+      <BranchLayer deployments={normalizedDeployments} activeColor={activeColor} idleColor={idleColor} />
 
       {/* Deployment cards */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${deployments.length}, minmax(280px, 1fr))`,
+          gridTemplateColumns: `repeat(${normalizedDeployments.length}, minmax(280px, 1fr))`,
           gap: 16,
           width: "100%",
           marginTop: -1,
         }}
       >
-        {deployments.map((d) => (
+        {normalizedDeployments.map((d) => (
           <DeploymentNode key={d.id} deployment={d} runtime={endpoint.runtime} />
         ))}
       </div>
@@ -1004,7 +1096,8 @@ function DeploymentNode({ deployment, runtime: _runtime }: { deployment: ModelDe
   // Only render running pod cards when the deployment is actually deployed.
   const podCount = deployment.deployed ? Math.max(1, replicas) : 0;
   const trafficPct = deployment.effective;
-  const trafficWeight = deployment.trafficWeight ?? 1;
+  // Use the user-set ratio (deployment.weight) so topology matches the active table chip.
+  const trafficWeight = deployment.weight;
   const deploymentNumber = deployment.deploymentNumber ?? 0;
   const auto = deployment.autoScaling ?? { min: 1, max: 10 };
 
@@ -1052,7 +1145,26 @@ function DeploymentNode({ deployment, runtime: _runtime }: { deployment: ModelDe
       {/* Meta */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 11, fontFamily: ff }}>
         <MetaItem label="Deployment ID" value={String(deploymentNumber)} />
-        <MetaItem label="Traffic" value={`${trafficPct}%`} hint={`(Traffic weight:${trafficWeight})`} />
+        <MetaItem
+          label="Traffic"
+          value={
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "1px 6px", borderRadius: 4,
+                  border: `1px solid ${colors.border.tertiary}`,
+                  backgroundColor: colors.bg.tertiary,
+                  fontSize: 11, color: colors.text.tertiary,
+                }}
+              >
+                <span style={{ fontSize: 10, opacity: 0.7 }}>w</span>
+                {trafficWeight}
+              </span>
+              <span style={{ color: colors.text.primary, fontWeight: 500 }}>{trafficPct}%</span>
+            </span>
+          }
+        />
       </div>
 
       {/* Pods — auto-scaled replicas. Stack vertically by default; opt into 2-up only when card is wide enough */}
@@ -1131,7 +1243,26 @@ function PodCard({ podId, running, trafficDistribution, trafficWeight, auto }: {
             </span>
           </span>
         } />
-        <PodMetaRow label="Traffic distribution" value={`${trafficDistribution}%`} hint={`(Traffic weight:${trafficWeight})`} />
+        <PodMetaRow
+          label="Traffic distribution"
+          value={
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "1px 6px", borderRadius: 4,
+                  border: `1px solid ${colors.border.tertiary}`,
+                  backgroundColor: colors.bg.tertiary,
+                  fontSize: 11, color: colors.text.tertiary,
+                }}
+              >
+                <span style={{ fontSize: 10, opacity: 0.7 }}>w</span>
+                {trafficWeight}
+              </span>
+              <span style={{ color: colors.text.primary, fontWeight: 500 }}>{trafficDistribution}%</span>
+            </span>
+          }
+        />
         <PodMetaRow label="Auto scaling" value={String(auto.min)} hint={`(min:${auto.min}~max:${auto.max})`} />
       </div>
     </div>
@@ -1752,7 +1883,10 @@ function EndpointFormDrawer({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [shmPath, setShmPath] = useState("/dev/shm");
   const [shmSize, setShmSize] = useState("10");
-  const [replicas, setReplicas] = useState("1");
+  const [scalingPolicy, setScalingPolicy] = useState<ScalingPolicy>({
+    mode: "manual",
+    replicas: 1,
+  });
 
   const handleNameChange = (v: string) => {
     setName(v);
@@ -1767,7 +1901,8 @@ function EndpointFormDrawer({
     setSelectedGpuUuids(new Set(DEFAULT_GPU_SELECTION));
     setGpuCount("1"); setGpuCorePct("50"); setGpuMemoryMib("510");
     setAdvancedOpen(false);
-    setShmPath("/dev/shm"); setShmSize("10"); setReplicas("1");
+    setShmPath("/dev/shm"); setShmSize("10");
+    setScalingPolicy({ mode: "manual", replicas: 1 });
     setResourceGuideOpen(false);
   };
   const handleClose = () => { onClose(); reset(); };
@@ -1963,9 +2098,9 @@ function EndpointFormDrawer({
                 />
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                <TextField label="GPU Count" value={gpuCount} onChange={(e) => setGpuCount(e.target.value)} helpMessage={`/ ${selectedGpuUuids.size || 0}`} />
-                <TextField label="GPU core (%)" value={gpuCorePct} onChange={(e) => setGpuCorePct(e.target.value)} helpMessage="/ 100" />
-                <TextField label="GPU memory (MiB)" value={gpuMemoryMib} onChange={(e) => setGpuMemoryMib(e.target.value)} helpMessage="/ 32510" />
+                <FieldWithMax label="GPU Count"        value={gpuCount}      onChange={(e) => setGpuCount(e.target.value)}      max={String(selectedGpuUuids.size || 0)} />
+                <FieldWithMax label="GPU core (%)"     value={gpuCorePct}    onChange={(e) => setGpuCorePct(e.target.value)}    max="100" />
+                <FieldWithMax label="GPU memory (MiB)" value={gpuMemoryMib}  onChange={(e) => setGpuMemoryMib(e.target.value)}  max="32510" />
               </div>
             </div>
           )}
@@ -2002,9 +2137,9 @@ function EndpointFormDrawer({
           )}
         </Section>
 
-        {/* Scaling — Deploy 모드에서 첫 배포 시 traffic info */}
+        {/* Scaling — full policy editor (manual replicas or auto with targets) */}
         <Section title="Scaling">
-          <TextField label="Replicas" value={replicas} onChange={(e) => setReplicas(e.target.value)} />
+          <ScalingPolicyForm value={scalingPolicy} onChange={setScalingPolicy} />
           <Alert
             status="info"
             alertStyle="subtle"
@@ -2097,6 +2232,49 @@ function RuntimeOptionCard({
   );
 }
 
+/**
+ * TextField + max indicator inline on the right (instead of below as helpMessage).
+ * Used for resource fields where the cap is just as important as the value.
+ *
+ *   GPU Count
+ *   [ 1            ]  / 4
+ */
+function FieldWithMax({
+  label,
+  value,
+  onChange,
+  max,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Maximum value as a string — appended after a "/" separator. */
+  max: string;
+}) {
+  const { colors } = useTheme();
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <TextField label={label} value={value} onChange={onChange} />
+      </div>
+      <span
+        style={{
+          height: 32,
+          display: "inline-flex",
+          alignItems: "center",
+          whiteSpace: "nowrap",
+          fontSize: 13,
+          color: colors.text.tertiary,
+          fontFamily: ff,
+          flexShrink: 0,
+        }}
+      >
+        / {max}
+      </span>
+    </div>
+  );
+}
+
 function DetailRow({ label, value, colors }: { label: string; value: string; colors: any }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -2132,7 +2310,7 @@ interface InferenceEndpointPageProps {
   /** Open this endpoint's detail on mount (matched by InferenceEndpoint.name; falls back to first endpoint). */
   initialEndpointName?: string;
   /** Detail tab to start on when initialEndpointName is supplied. */
-  initialDetailTab?: "overview" | "monitoring";
+  initialDetailTab?: "overview" | "history" | "monitoring";
 }
 
 export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models", initialEndpointName, initialDetailTab }: InferenceEndpointPageProps) {
@@ -2140,9 +2318,84 @@ export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models", 
   const [selectedNav, setSelectedNav] = useState("inference");
   const [endpoints, setEndpoints] = useState(SAMPLE_ENDPOINTS);
   const [selected, setSelected] = useState<InferenceEndpoint | null>(null);
+  const [selectedDeployment, setSelectedDeployment] = useState<ModelDeployment | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // Single source of truth for active deployment scaling state.
+  // Edits in DeploymentDetailView's Scaling section propagate back here so
+  // the Overview's active card reflects the change immediately.
+  const [activeDeployments, setActiveDeployments] = useState<ActiveDeployment[]>(DEMO_ACTIVE_DEPLOYMENTS);
+
+  // Snapshot-based rollback. Operators take explicit snapshots of the active
+  // deployment state before risky changes, then revert to one if needed.
+  const [snapshots, setSnapshots] = useState<DeploymentSnapshot[]>([]);
+  const [rollbackToast, setRollbackToast] = useState<string | null>(null);
+
+  // Audit log — rollback events are appended here so they show up in the
+  // endpoint's 배포 이력 tab alongside deploys/traffic/scale changes.
+  const [events, setEvents] = useState<DeploymentEvent[]>(DEMO_EVENTS);
+
+  const handleScalingChange = (deploymentName: string, policy: ScalingPolicy) => {
+    setActiveDeployments((cur) =>
+      cur.map((a) => (a.name === deploymentName ? { ...a, scaling: policy } : a))
+    );
+  };
+
+  const handleTakeSnapshot = () => {
+    const now = new Date();
+    const ts = now.toISOString().slice(0, 19).replace("T", " ");
+    const snap: DeploymentSnapshot = {
+      id: `snap-${now.getTime()}`,
+      takenAt: ts,
+      takenBy: "Jungmin Park",
+      takenByInitial: "JP",
+      label: `${activeDeployments.length}개 배포 · 트래픽 ${activeDeployments.reduce((s, d) => s + d.trafficPct, 0)}%`,
+      // Deep-clone via JSON to capture the state immutably.
+      deployments: JSON.parse(JSON.stringify(activeDeployments)) as ActiveDeployment[],
+    };
+    setSnapshots((prev) => [snap, ...prev]);
+    setRollbackToast(`스냅샷 생성됨 — ${ts}`);
+    window.setTimeout(() => setRollbackToast(null), 3500);
+  };
+
+  const handleRollback = (snapshotId: string) => {
+    const snap = snapshots.find((s) => s.id === snapshotId);
+    if (!snap) return;
+    // Compute per-deployment trafficPct diffs for the audit log changes list.
+    const changes: { field: string; from: string; to: string }[] = [];
+    snap.deployments.forEach((restored) => {
+      const cur = activeDeployments.find((a) => a.name === restored.name);
+      if (!cur) return;
+      if (cur.trafficPct !== restored.trafficPct) {
+        changes.push({ field: `traffic[${restored.name}]`, from: `${cur.trafficPct}%`, to: `${restored.trafficPct}%` });
+      }
+      if (cur.scaling.replicas !== restored.scaling.replicas) {
+        changes.push({ field: `replicas[${restored.name}]`, from: `${cur.scaling.replicas}`, to: `${restored.scaling.replicas}` });
+      }
+    });
+    setActiveDeployments(JSON.parse(JSON.stringify(snap.deployments)) as ActiveDeployment[]);
+
+    // Append a rollback event to the audit log.
+    const now = new Date();
+    const ts = now.toISOString().slice(0, 19).replace("T", " ");
+    const targetSummary = snap.deployments.map((d) => d.name).join(", ");
+    const rollbackEvent: DeploymentEvent = {
+      id: `evt-${now.getTime()}`,
+      timestamp: ts,
+      action: "rollback",
+      target: targetSummary || "endpoint",
+      performer: "Jungmin Park",
+      performerInitial: "JP",
+      status: "succeeded",
+      summary: `${snap.takenAt} 스냅샷 상태로 복원`,
+      changes: changes.length > 0 ? changes : undefined,
+      note: `스냅샷 라벨: ${snap.label ?? "—"} · 캡처자: ${snap.takenBy}`,
+    };
+    setEvents((prev) => [rollbackEvent, ...prev]);
+    setRollbackToast(`롤백 완료 — ${snap.takenAt} 스냅샷 상태로 복원됨`);
+    window.setTimeout(() => setRollbackToast(null), 4000);
+  };
 
   // Deep-link: open detail when navigated from a workload drawer.
   React.useEffect(() => {
@@ -2176,17 +2429,43 @@ export function InferenceEndpointPage({ onNavigate, projectName = "NLP Models", 
             {
               label: "Inference endpoint",
               icon: <Icon name="inference_endpoint" size={20} color={colors.icon.secondary} /> ,
-              onClick: selected ? () => setSelected(null) : undefined,
+              onClick: selected ? () => { setSelected(null); setSelectedDeployment(null); } : undefined,
             },
-            { label: selected ? selected.name : "Deployments" },
+            ...(selected
+              ? [{
+                  label: selected.name,
+                  onClick: selectedDeployment ? () => setSelectedDeployment(null) : undefined,
+                }]
+              : [{ label: "Deployments" }]),
+            ...(selectedDeployment ? [{ label: selectedDeployment.name }] : []),
           ]}
         />
 
-        {selected ? (
+        {selected && selectedDeployment ? (() => {
+          const activeMatch = activeDeployments.find((a) => a.name === selectedDeployment.name);
+          const detailForSelected = activeMatch
+            ? { ...DEMO_DEPLOYMENT_DETAIL, scaling: activeMatch.scaling }
+            : DEMO_DEPLOYMENT_DETAIL;
+          return (
+            <DeploymentDetailView
+              deploymentName={selectedDeployment.name}
+              detail={detailForSelected}
+              onUndeploy={() => setSelectedDeployment(null)}
+              onScalingChange={(p) => handleScalingChange(selectedDeployment.name, p)}
+            />
+          );
+        })() : selected ? (
           <EndpointDetailView
             endpoint={selected}
             onDeployModel={() => setDeployOpen(true)}
             initialDetailTab={initialDetailTab}
+            onSelectDeployment={(d) => setSelectedDeployment(d)}
+            activeDeployments={activeDeployments}
+            snapshots={snapshots}
+            onTakeSnapshot={handleTakeSnapshot}
+            onRollback={handleRollback}
+            rollbackToast={rollbackToast}
+            events={events}
           />
         ) : (
           <EndpointListView
