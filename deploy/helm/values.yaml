@@ -1,0 +1,92 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Default values for makinarocks-ds-demo
+# ─────────────────────────────────────────────────────────────────────────────
+
+replicaCount: 1
+
+image:
+  # ⚠️ 실제 push할 레지스트리/이미지 경로로 교체
+  # 예) gitea.runway.dev/makinarocks/ds-demo, harbor.runway.dev/mlops/ds-demo
+  repository: gitea.runway.dev/makinarocks/ds-demo
+  pullPolicy: IfNotPresent
+  tag: ""   # 비우면 .Chart.appVersion 사용
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod 보안 컨텍스트 — Runway는 보통 non-root 강제
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 101            # nginx group
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false   # nginx 임시 파일 작성 필요 (true 원하면 emptyDir mount 필요)
+  runAsUser: 101                  # nginx user
+  runAsGroup: 101
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: ds-demo.runway.dev
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - ds-demo.runway.dev
+      secretName: ds-demo-tls
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 2
+  periodSeconds: 5
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}

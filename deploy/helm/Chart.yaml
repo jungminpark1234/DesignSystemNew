@@ -1,0 +1,14 @@
+apiVersion: v2
+name: makinarocks-ds-demo
+description: MakinaRocks Design System demo / monitoring console
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: jungmin.park
+    email: jungmin.park@makinarocks.ai
+keywords:
+  - makinarocks
+  - design-system
+  - demo
+  - monitoring
