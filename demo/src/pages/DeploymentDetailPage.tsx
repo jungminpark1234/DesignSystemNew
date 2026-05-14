@@ -105,6 +105,64 @@ export interface DeploymentEvent {
     /** e.g., "ReadWriteOnce", "ReadWriteMany". */
     accessMode?: string;
   };
+  /**
+   * Full configuration snapshot at deploy time — surfaced in the expanded
+   * detail view as grouped sections with per-field clipboard copy buttons.
+   * Required for `deploy` / `redeploy` events; optional for partial-change
+   * events (traffic / scale / config) which display per-field diffs instead.
+   * PRD §3.2.2 — operators copy these values into the new-deploy form to
+   * recreate the same environment.
+   */
+  snapshot?: DeploymentConfigSnapshot;
+}
+
+/**
+ * Captured "박제" of the deployment configuration at a single point in time.
+ * Grouped exactly as the PRD §3.2.2 spec defines so the UI can render each
+ * group as a card section without further mapping.
+ */
+export interface DeploymentConfigSnapshot {
+  /** 기본 정보 */
+  basic: {
+    deploymentName: string;
+    deploymentId: string;
+    description?: string;
+  };
+  /** 모델 소스 */
+  modelSource: {
+    volume?: string;
+    modelPath?: string;
+  };
+  /** 컴퓨팅 리소스 */
+  compute: {
+    cpuMillicores: number;
+    memoryMiB: number;
+    gpuModel?: string;
+    gpuCount?: number;
+    gpuCorePct?: number;
+    gpuMemoryMiB?: number;
+  };
+  /** 고급 설정 */
+  advanced: {
+    sharedMemoryPath?: string;
+    sharedMemoryMiB?: number;
+  };
+  /** 스케일링 — 라이브 디테일 페이지의 ScalingPolicyView와 동일한 정보 노출. */
+  scaling: ScalingPolicy;
+  /** 트래픽 설정 */
+  traffic: {
+    /** 사용자가 입력한 가중치 (정규화 전 원시 비율) */
+    weight: number;
+    /** 정규화 후 실제 라우팅되는 트래픽 % — 모델 상세의 Effective Traffic과 동일 의미 */
+    effective: number;
+  };
+  /** 배포 메타데이터 (수행자/시각/결과는 이벤트에서 가져오므로 여기엔 보조 정보만) */
+  meta?: {
+    /** 수행자 이메일 (배포 메타데이터 §3.2.2). */
+    performerEmail?: string;
+    /** 완료 시각 — 시작 시각은 event.timestamp 사용. */
+    completedAt?: string;
+  };
 }
 
 export type ScalingMode = "manual" | "auto";
@@ -373,6 +431,22 @@ export const DEMO_EVENTS: DeploymentEvent[] = [
     artifact: { fileName: "classifier-canary-v0.1.0.tar", size: "1.2 GB", exportedAt: "2025-01-15 14:35:08", available: true },
     deploymentId: "dep-c4n9r1",
     pvc: { name: "classifier-canary-pvc", storageClass: "gp3", size: "20Gi", accessMode: "ReadWriteOnce" },
+    snapshot: {
+      basic: { deploymentName: "classifier-canary", deploymentId: "dep-c4n9r1", description: "Canary 트래픽 분배 검증용 작은 모델." },
+      modelSource: { volume: "models-staging-volume", modelPath: "/mnt/models/classifier-canary" },
+      compute: { cpuMillicores: 2000, memoryMiB: 4096, gpuModel: "NVIDIA A10", gpuCount: 1, gpuCorePct: 50, gpuMemoryMiB: 12288 },
+      advanced: { sharedMemoryPath: "/dev/shm", sharedMemoryMiB: 512 },
+      scaling: {
+        mode: "auto",
+        replicas: 1,
+        minReplicas: 1,
+        maxReplicas: 3,
+        targets: [{ type: "gpu-mem", value: 85, unit: "%" }],
+        stabilization: "aggressive",
+      },
+      traffic: { weight: 10, effective: 10 },
+      meta: { performerEmail: "jungmin@makinarocks.ai", completedAt: "2025-01-15 14:35:08" },
+    },
   },
   {
     id: "e3", timestamp: "2024-12-15 09:15:30",
@@ -388,6 +462,15 @@ export const DEMO_EVENTS: DeploymentEvent[] = [
     artifact: { fileName: "classifier-v2-v2.0.0.tar", size: "1.4 GB", exportedAt: "2024-12-15 09:20:18", available: true },
     deploymentId: "dep-v2a8e3",
     pvc: { name: "classifier-v2-pvc", storageClass: "gp3", size: "30Gi", accessMode: "ReadWriteOnce" },
+    snapshot: {
+      basic: { deploymentName: "classifier-v2", deploymentId: "dep-v2a8e3", description: "분류 정확도 개선을 위한 v2 신규 배포." },
+      modelSource: { volume: "models-prod-volume", modelPath: "/mnt/models/classifier-v2" },
+      compute: { cpuMillicores: 4000, memoryMiB: 8192, gpuModel: "NVIDIA A10", gpuCount: 1, gpuCorePct: 70, gpuMemoryMiB: 16384 },
+      advanced: { sharedMemoryPath: "/dev/shm", sharedMemoryMiB: 1024 },
+      scaling: { mode: "manual", replicas: 1 },
+      traffic: { weight: 30, effective: 30 },
+      meta: { performerEmail: "jungmin@makinarocks.ai", completedAt: "2024-12-15 09:20:18" },
+    },
   },
   {
     id: "e4", timestamp: "2024-12-15 09:15:30",
@@ -422,6 +505,22 @@ export const DEMO_EVENTS: DeploymentEvent[] = [
     artifact: { fileName: "classifier-v1-v1.3.5.tar", size: "1.0 GB", exportedAt: "2024-10-07 15:35:01", available: true },
     deploymentId: "dep-v1a2c8",
     pvc: { name: "classifier-v1-pvc", storageClass: "gp3", size: "20Gi", accessMode: "ReadWriteOnce" },
+    snapshot: {
+      basic: { deploymentName: "classifier-v1", deploymentId: "dep-v1a2c8", description: "초기 분류 모델 배포 (안정 버전)." },
+      modelSource: { volume: "models-prod-volume", modelPath: "/mnt/models/classifier-v1" },
+      compute: { cpuMillicores: 4000, memoryMiB: 8192, gpuModel: "NVIDIA A10", gpuCount: 1, gpuCorePct: 80, gpuMemoryMiB: 16384 },
+      advanced: { sharedMemoryPath: "/dev/shm", sharedMemoryMiB: 1024 },
+      scaling: {
+        mode: "auto",
+        replicas: 2,
+        minReplicas: 1,
+        maxReplicas: 5,
+        targets: [{ type: "gpu", value: 70, unit: "%" }],
+        stabilization: "balanced",
+      },
+      traffic: { weight: 100, effective: 100 },
+      meta: { performerEmail: "soyeon@makinarocks.ai", completedAt: "2024-10-07 15:35:01" },
+    },
   },
 ];
 
@@ -466,16 +565,19 @@ function SectionCard({
   title,
   actions,
   bordered = true,
+  titleGap = 16,
   children,
 }: {
   title: string;
   actions?: React.ReactNode;
   bordered?: boolean;
+  /** Header(타이틀)와 본문 카드 사이 간격. 기본 16, 스냅샷 등 컴팩트 영역에선 8 사용. */
+  titleGap?: number;
   children: React.ReactNode;
 }) {
   const { colors } = useTheme();
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <section style={{ display: "flex", flexDirection: "column", gap: titleGap }}>
       <SectionHeader title={title} actions={actions} />
       {bordered ? (
         <div
@@ -1053,7 +1155,8 @@ export function ActiveDeploymentsCard({
             {title}
           </h2>
           <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>
-            {deployments.length} 모델 · 총 트래픽 {totalTraffic}% · 스냅샷 {snapshots.length}개
+            {deployments.length} 모델 · 총 트래픽 {totalTraffic}%
+            {showSnapshotControls && ` · 스냅샷 ${snapshots.length}개`}
           </span>
         </div>
         {showSnapshotControls && (
@@ -1095,9 +1198,15 @@ export function ActiveDeploymentsCard({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {deployments.map((d) => (
-          <ActiveDeploymentRow key={d.name} deployment={d} onClick={onRowClick} />
-        ))}
+        {/* 트래픽 비중이 큰 deployment를 위로 — 운영자가 "지금 가장 영향력 있는 모델"
+            을 먼저 보게 하는 것이 자연스럽다. 동률이면 deployedAt 최신순으로 tie-break. */}
+        {[...deployments]
+          .sort((a, b) =>
+            b.trafficPct - a.trafficPct || (b.deployedAt || "").localeCompare(a.deployedAt || "")
+          )
+          .map((d) => (
+            <ActiveDeploymentRow key={d.name} deployment={d} onClick={onRowClick} />
+          ))}
       </div>
     </div>
   );
@@ -1255,7 +1364,10 @@ function ActiveDeploymentRow({ deployment: d, onClick }: { deployment: ActiveDep
                 style={{
                   width: `${Math.min(100, d.trafficPct)}%`,
                   height: "100%",
-                  backgroundColor: isIdle ? colors.bg.neutral : colors.bg.interactive.runwayPrimary,
+                  // 트래픽 분배는 정적 share라 차분한 neutral 톤 — 아래 동적 observed
+                  // metric bar(primary)와 시각적으로 구분된다. idle(0%)은 자연스럽게
+                  // 막대가 안 보임.
+                  backgroundColor: isIdle ? colors.bg.neutral : colors.text.tertiary,
                   borderRadius: 9999,
                   transition: "width 0.3s ease",
                 }}
@@ -1357,7 +1469,7 @@ export function ScalingConstraintBanner({ deployments }: { deployments: ActiveDe
   );
 }
 
-function ScalingPolicyChip({ policy, pods }: { policy: ScalingPolicy; pods: number }) {
+export function ScalingPolicyChip({ policy, pods }: { policy: ScalingPolicy; pods: number }) {
   const { colors } = useTheme();
   if (policy.mode === "manual") {
     return (
@@ -1398,7 +1510,7 @@ function ScalingPolicyChip({ policy, pods }: { policy: ScalingPolicy; pods: numb
   );
 }
 
-function ScalingStatusBadge({ status, maxR }: { status: ScalingStatus; maxR: number }) {
+export function ScalingStatusBadge({ status, maxR }: { status: ScalingStatus; maxR: number }) {
   const { colors } = useTheme();
   if (!status) return null;
   const palette = (() => {
@@ -1433,7 +1545,7 @@ function ScalingStatusBadge({ status, maxR }: { status: ScalingStatus; maxR: num
 // Observed Metric Bar — live observed value vs target / scale-up / scale-down
 // (Why is scaling happening / not happening — answers PRD §2 "사유 명확히")
 // ─────────────────────────────────────────────────────────────────────────────
-function ObservedMetricBar({ policy }: { policy: ScalingPolicy }) {
+export function ObservedMetricBar({ policy }: { policy: ScalingPolicy }) {
   const { colors } = useTheme();
   if (policy.mode !== "auto" || !policy.targets || policy.targets.length === 0 || !policy.observed) return null;
 
@@ -1451,26 +1563,26 @@ function ObservedMetricBar({ policy }: { policy: ScalingPolicy }) {
   const scaleUpPct  = (th.scaleUp / max) * 100;
   const scaleDownPct = (th.scaleDown / max) * 100;
 
-  type Zone = "trigger-up" | "warm-up" | "stable" | "warm-down" | "trigger-down";
-  const zone: Zone =
-    o.value >= th.scaleUp     ? "trigger-up"   :
-    o.value >  t.value        ? "warm-up"      :
-    o.value <= th.scaleDown   ? "trigger-down" :
-    o.value <  t.value        ? "warm-down"    : "stable";
-
-  const palette = (() => {
-    switch (zone) {
-      case "trigger-up":   return { fill: colors.bg.danger,  text: colors.text.danger,  status: "Scale-up 트리거 — 임계치 초과" };
-      case "warm-up":      return { fill: colors.bg.warning, text: colors.text.warning, status: `Scale-up 임박 — 헤드룸 ${fmt(th.scaleUp - o.value)}` };
-      case "stable":       return { fill: colors.bg.success, text: colors.text.success, status: "안정 범위" };
-      case "warm-down":    return { fill: colors.bg.success, text: colors.text.success, status: `Scale-down 영역 — 여유 ${fmt(o.value - th.scaleDown)}` };
-      case "trigger-down": return { fill: colors.bg.interactive.runwayPrimary, text: colors.text.interactive.runwayPrimary, status: "Scale-down 트리거 — 임계치 미만" };
-    }
-  })();
+  // Auto-scaling observed metric bar — 브랜드 primary 색으로 통일.
+  // Status 텍스트로 zone(scale-down 영역 / 정상 / target 초과 / 트리거) 정보를 전달.
+  // 진짜 위험(큐잉)은 ScalingStatusBadge가 빨강으로 별도 노출.
+  const palette = {
+    fill: colors.bg.interactive.runwayPrimary,
+    text: colors.text.interactive.runwayPrimary,
+    status:
+      o.value >= th.scaleUp
+        ? `Scale-up 트리거 — 시스템이 파드를 늘리는 중`
+        : o.value > t.value
+          ? `target 초과 — Scale-up까지 ${fmt(th.scaleUp - o.value)}`
+          : o.value < th.scaleDown
+            ? `Scale-down 영역 — target까지 ${fmt(t.value - o.value)}`
+            : "정상 운영 범위",
+  };
 
   const trendIcon: "up-arrow" | "down-arrow" | "minus" =
     o.trend === "rising" ? "up-arrow" : o.trend === "falling" ? "down-arrow" : "minus";
-  const trendLabel = o.trend === "rising" ? "rising" : o.trend === "falling" ? "falling" : "stable";
+  // 라벨은 아이콘 이름과 일관되게 up/down/stable — 짧고 모니터링 대시보드 관습에 맞음.
+  const trendLabel = o.trend === "rising" ? "up" : o.trend === "falling" ? "down" : "stable";
 
   return (
     <div
@@ -1702,11 +1814,11 @@ function EventTimelineTab({
             <tr>
               <th style={{ ...headerCell, width: 36 }} aria-label="" />
               <th style={headerCell}>시각</th>
-              <th style={headerCell}>작업</th>
               <th style={headerCell}>대상</th>
+              <th style={headerCell}>작업</th>
               <th style={headerCell}>변경 사항</th>
-              <th style={headerCell}>수행자</th>
               <th style={headerCell}>상태</th>
+              <th style={headerCell}>수행자</th>
             </tr>
           </thead>
           <tbody>
@@ -1737,9 +1849,6 @@ function EventTimelineTab({
                       {ev.timestamp}
                     </td>
                     <td style={cell}>
-                      <ActionChip action={ev.action} />
-                    </td>
-                    <td style={cell}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                         <Icon name="model" size={14} color={colors.icon.tertiary} />
                         <span style={{ fontWeight: 500, color: isFailed ? colors.text.tertiary : colors.text.primary }}>
@@ -1752,17 +1861,20 @@ function EventTimelineTab({
                         )}
                       </span>
                     </td>
+                    <td style={cell}>
+                      <ActionChip action={ev.action} />
+                    </td>
                     <td style={{ ...cell, color: colors.text.secondary }}>
                       {ev.summary}
+                    </td>
+                    <td style={cell}>
+                      <StatusChip state={st.state} size="sm" label={st.label} />
                     </td>
                     <td style={cell}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                         <Avatar initial={ev.performerInitial} size="sm" color={getAvatarColorFromInitial(ev.performerInitial)} />
                         <span>{ev.performer}</span>
                       </span>
-                    </td>
-                    <td style={cell}>
-                      <StatusChip state={st.state} size="sm" label={st.label} />
                     </td>
                   </tr>
                   {isExpanded && (
@@ -1778,6 +1890,20 @@ function EventTimelineTab({
           </tbody>
         </table>
       </div>
+      {/* PRD §4.2 — 모든 배포 로그는 2년 보관 후 자동 삭제. */}
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 12,
+          color: colors.text.tertiary,
+          fontFamily: ff,
+        }}
+      >
+        <Icon name="info-circle-stroke" size={14} color={colors.icon.tertiary} />
+        배포 이력은 최근 2년 범위만 표시되며, 2년이 경과한 이력은 자동으로 삭제됩니다.
+      </div>
     </div>
   );
 }
@@ -1785,17 +1911,14 @@ function EventTimelineTab({
 function ActionChip({ action }: { action: EventAction }) {
   const { colors } = useTheme();
   const a = ACTION_LABEL[action];
-  const palette = (() => {
+  // 톤별 텍스트 색만 유지 — 칩 배경/테두리는 제거하고 아이콘 + 라벨 인라인으로 표시.
+  const fg = (() => {
     switch (a.tone) {
-      case "primary":
-        return { bg: colors.bg.successSubtle, fg: colors.text.success, border: colors.bg.success };
-      case "warn":
-        return { bg: colors.bg.warningSubtle, fg: colors.text.warning, border: colors.bg.warning };
-      case "danger":
-        return { bg: colors.bg.dangerSubtle, fg: colors.text.danger, border: colors.bg.danger };
+      case "primary": return colors.text.success;
+      case "warn":    return colors.text.warning;
+      case "danger":  return colors.text.danger;
       case "neutral":
-      default:
-        return { bg: colors.bg.tertiary, fg: colors.text.secondary, border: colors.border.tertiary };
+      default:        return colors.text.secondary;
     }
   })();
   return (
@@ -1803,19 +1926,15 @@ function ActionChip({ action }: { action: EventAction }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
-        padding: "2px 8px",
-        borderRadius: 9999,
-        border: `1px solid ${palette.border}`,
-        backgroundColor: palette.bg,
-        color: palette.fg,
+        gap: 6,
+        color: fg,
         fontFamily: ff,
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: 500,
         whiteSpace: "nowrap",
       }}
     >
-      <Icon name={a.icon as any} size={12} color="currentColor" />
+      <Icon name={a.icon as any} size={14} color="currentColor" />
       {a.label}
     </span>
   );
@@ -1824,15 +1943,17 @@ function ActionChip({ action }: { action: EventAction }) {
 function EventExpandedDetail({ event }: { event: DeploymentEvent }) {
   const { colors } = useTheme();
   const hasChanges = !!event.changes && event.changes.length > 0;
-  const hasTimeline = !!event.decisionTimeline && event.decisionTimeline.length > 0;
+  const hasSnapshot = !!event.snapshot;
   return (
-    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
-      {hasTimeline && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <SectionLabel>의사결정 타임라인</SectionLabel>
-          <DecisionTimelineView steps={event.decisionTimeline!} />
-        </div>
+    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Full configuration snapshot — PRD §3.2.2.
+          Renders only when the event carries a snapshot (deploy/redeploy).
+          Each field has a clipboard copy button so operators can paste the
+          exact value into the new-deploy form (수동 재배포 가이드 §3.3). */}
+      {hasSnapshot && (
+        <ConfigSnapshotView snapshot={event.snapshot!} event={event} />
       )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <SectionLabel>변경 사항</SectionLabel>
@@ -1845,7 +1966,15 @@ function EventExpandedDetail({ event }: { event: DeploymentEvent }) {
                 overflow: "hidden",
               }}
             >
-              {event.changes!.map((c, i) => (
+              {event.changes!.map((c, i) => {
+                // 실패한 이벤트는 변경 사항 텍스트를 danger 톤으로 강조해
+                // 어떤 값으로의 전환이 실패했는지 한눈에 식별되도록 한다.
+                const failed = event.status === "failed";
+                const labelColor = failed ? colors.text.danger : colors.text.secondary;
+                const fromColor  = failed ? colors.text.danger : colors.text.tertiary;
+                const toColor    = failed ? colors.text.danger : colors.text.primary;
+                const arrowColor = failed ? colors.text.danger : colors.icon.tertiary;
+                return (
                 <div
                   key={c.field + i}
                   style={{
@@ -1857,18 +1986,19 @@ function EventExpandedDetail({ event }: { event: DeploymentEvent }) {
                     borderTop: i === 0 ? "none" : `1px solid ${colors.border.tertiary}`,
                   }}
                 >
-                  <span style={{ fontSize: 12, fontFamily: ff, color: colors.text.secondary }}>{c.field}</span>
-                  <span style={{ fontSize: 12, fontFamily: ffMono, color: colors.text.tertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 12, fontFamily: ff, color: labelColor, fontWeight: failed ? 500 : 400 }}>{c.field}</span>
+                  <span style={{ fontSize: 12, fontFamily: ffMono, color: fromColor, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {c.from}
                   </span>
-                  <span style={{ display: "flex", justifyContent: "center", color: colors.icon.tertiary }}>
+                  <span style={{ display: "flex", justifyContent: "center", color: arrowColor }}>
                     <Icon name="next-arrow" size={14} color="currentColor" />
                   </span>
-                  <span style={{ fontSize: 12, fontFamily: ffMono, color: colors.text.primary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 12, fontFamily: ffMono, color: toColor, fontWeight: failed ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {c.to}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>
@@ -1885,11 +2015,11 @@ function EventExpandedDetail({ event }: { event: DeploymentEvent }) {
               </p>
             </>
           )}
-          {(event.artifact || event.deploymentId || event.pvc) && (
+          {(event.artifact || (event.deploymentId && !hasSnapshot) || event.pvc) && (
             <>
               <SectionLabel>메타</SectionLabel>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {event.deploymentId && (
+                {event.deploymentId && !hasSnapshot && (
                   <SnapshotKv label="Deployment ID" value={event.deploymentId} mono />
                 )}
                 {event.pvc && (
@@ -1913,11 +2043,323 @@ function EventExpandedDetail({ event }: { event: DeploymentEvent }) {
               </div>
             </>
           )}
-          {!event.note && !event.artifact && !event.deploymentId && !event.pvc && (
+          {!event.note && !event.artifact && !event.deploymentId && !event.pvc && !hasSnapshot && (
             <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>추가 정보 없음</span>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 배포 시점 설정 스냅샷 — Model Deployment 상세 페이지의 `ServiceConfigSections`와
+ * 동일한 레이아웃(SectionCard + KvRow + InlineKv)으로 렌더하여 운영자가
+ * 익숙한 시각 위계 안에서 값을 읽고 새 배포 폼으로 복사할 수 있도록 한다.
+ *
+ * 디테일 페이지는 Edit 가능한 라이브 상태고, 여기는 과거 시점의 박제 상태라
+ * 모든 Edit 버튼은 제거하고 값 옆에 hover-reveal 복사 버튼을 둔다.
+ */
+function ConfigSnapshotView({
+  snapshot,
+  event,
+}: {
+  snapshot: DeploymentConfigSnapshot;
+  event: DeploymentEvent;
+}) {
+  const { colors } = useTheme();
+  const cpu = snapshot.compute.cpuMillicores;
+  const mem = snapshot.compute.memoryMiB;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* 라벨은 wrapper 밖 — 흰 카드의 "헤더"가 아니라 "이 영역은 스냅샷"이라는 표지. */}
+      <SectionLabel>배포 시점 설정 스냅샷</SectionLabel>
+    <div
+      style={{
+        // 외부 expanded row의 회색 배경에서 시각적으로 분리 — 흰 배경 + 테두리로
+        // 스냅샷 영역의 시작/끝을 명확히 한다.
+        backgroundColor: colors.bg.primary,
+        border: `1px solid ${colors.border.tertiary}`,
+        borderRadius: 12,
+        padding: 20,
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+      }}
+    >
+      {/* 작은 헤더 정보 — 배포 ID + 설명. 배포 이름/시각/수행자/결과는 테이블 행에 이미 있어 생략. */}
+      {(snapshot.basic.deploymentId || snapshot.basic.description) && (
+        <div
+          style={{
+            border: `1px solid ${colors.border.tertiary}`,
+            borderRadius: 8,
+            backgroundColor: colors.bg.secondary,
+            padding: "10px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          {snapshot.basic.deploymentId && (
+            <CopyableLine label="Deployment ID" value={snapshot.basic.deploymentId} mono />
+          )}
+          {snapshot.basic.description && (
+            <CopyableLine label="설명" value={snapshot.basic.description} />
+          )}
+        </div>
+      )}
+
+      {/* 섹션 컨테이너 — 4 SectionCard 간 간격 32px (요청사항). */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      {/* ───── Model source ───── */}
+      <SectionCard title="Model source" titleGap={8}>
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+          <KvRow label="Volume">
+            <CopyableInline value={snapshot.modelSource.volume} />
+          </KvRow>
+          <KvRow label="Model path">
+            <CopyableInline value={snapshot.modelSource.modelPath} mono />
+          </KvRow>
+        </div>
+      </SectionCard>
+
+      {/* ───── Compute Resources ───── */}
+      <SectionCard title="Compute Resources" titleGap={8}>
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+            <InlineKvCopy label="CPU"    value={String(cpu)} unit="millicores" />
+            <InlineKvCopy label="Memory" value={String(mem)} unit="MiB" />
+          </div>
+
+          {/* Advance options — 디테일 페이지와 동일한 sub-card 톤 */}
+          <div
+            style={{
+              border: `1px solid ${colors.border.tertiary}`,
+              borderRadius: 8,
+              backgroundColor: colors.bg.secondary,
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, fontFamily: ff, margin: 0, lineHeight: "20px" }}>
+              Advance options
+            </h3>
+            <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+              <InlineKvCopy
+                label="Shared memory mount path"
+                value={snapshot.advanced.sharedMemoryPath}
+                mono
+              />
+              <InlineKvCopy
+                label="Shared memory"
+                value={snapshot.advanced.sharedMemoryMiB != null ? String(snapshot.advanced.sharedMemoryMiB) : undefined}
+                unit="MiB"
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, backgroundColor: colors.border.tertiary }} />
+
+          {/* GPU block — 디테일 페이지의 GPU 영역 패턴 */}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", minHeight: 24 }}>
+            <div
+              style={{
+                width: 60, flexShrink: 0,
+                fontSize: 13, fontWeight: 500,
+                color: colors.text.primary, fontFamily: ff,
+                lineHeight: "20px", paddingTop: 4,
+              }}
+            >
+              GPU
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+              {snapshot.compute.gpuModel && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  <Chip label={snapshot.compute.gpuModel} size="sm" tone="success" />
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 32, flexWrap: "wrap", paddingTop: 4 }}>
+                <InlineKvCopy
+                  label="GPU Count"
+                  value={snapshot.compute.gpuCount != null ? String(snapshot.compute.gpuCount) : undefined}
+                  unit="GPUs"
+                />
+                <InlineKvCopy
+                  label="GPU core (%)"
+                  value={snapshot.compute.gpuCorePct != null ? String(snapshot.compute.gpuCorePct) : undefined}
+                  unit="%"
+                />
+                <InlineKvCopy
+                  label="GPU memory (MiB)"
+                  value={snapshot.compute.gpuMemoryMiB != null ? String(snapshot.compute.gpuMemoryMiB) : undefined}
+                  unit="MiB"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      {/* ───── Scaling — 라이브 모델 상세 페이지의 ScalingPolicyView 그대로 재사용.
+              Manual 모드: 모드 토글 + Replicas
+              Auto 모드:   모드 토글 + Min/Max/Current desired + Scaling Target + Quota hint */}
+      <SectionCard title="Scaling" titleGap={8}>
+        <ScalingPolicyView policy={snapshot.scaling} />
+      </SectionCard>
+
+      {/* ───── Traffic Configuration — 모델 상세 페이지와 동일한 스타일.
+              가중치(Traffic Weight)와 정규화된 실제 트래픽(Effective Traffic)을
+              progress bar와 함께 표시. */}
+      <SectionCard title="Traffic Configuration" titleGap={8}>
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <KvRow
+            label={
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                Traffic Weight <HelpIcon tip="User-set traffic weight relative to other deployments." />
+              </span>
+            }
+            labelWidth={140}
+          >
+            <CopyableInline value={String(snapshot.traffic.weight)} mono />
+          </KvRow>
+          <KvRow
+            label={
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                Effective Traffic <HelpIcon tip="Actual percentage of traffic routed to this deployment." />
+              </span>
+            }
+            labelWidth={140}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 200 }}>
+              <span style={{ minWidth: 36, color: colors.text.primary }}>
+                {snapshot.traffic.effective}%
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  maxWidth: 140,
+                  height: 6,
+                  borderRadius: 9999,
+                  backgroundColor: colors.bg.neutral,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${Math.min(100, snapshot.traffic.effective)}%`,
+                    height: "100%",
+                    backgroundColor: colors.bg.interactive.runwayPrimary,
+                    borderRadius: 9999,
+                  }}
+                />
+              </div>
+            </div>
+          </KvRow>
+        </div>
+      </SectionCard>
+      </div>
+    </div>
+    </div>
+  );
+}
+
+/**
+ * 인라인 값 + hover 복사 — KvRow의 자식으로 들어가는 값 표현.
+ * 디테일 페이지 라이브 값 표시와 동일한 톤 유지.
+ */
+function CopyableInline({ value, mono = false }: { value: string | undefined | null; mono?: boolean }) {
+  const { colors } = useTheme();
+  const [hover, setHover] = useState(false);
+  const isEmpty = value == null || value === "";
+  if (isEmpty) {
+    return <span style={{ color: colors.text.tertiary, fontStyle: "italic", fontFamily: ff }}>—</span>;
+  }
+  return (
+    <span
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: mono ? ffMono : ff }}
+    >
+      <span>{value}</span>
+      <span style={{ display: "inline-flex", opacity: hover ? 1 : 0, transition: "opacity 0.12s ease" }}>
+        <CopyButton text={value!} size={20} iconSize={14} />
+      </span>
+    </span>
+  );
+}
+
+/**
+ * 디테일 페이지의 InlineKv 변형 — chip 표시 + hover 복사.
+ * Compute Resources의 CPU/Memory/GPU 수치 같은 "label [value] unit" 형식.
+ */
+function InlineKvCopy({
+  label,
+  value,
+  unit,
+}: {
+  label: string;
+  value: string | undefined | null;
+  unit?: string;
+}) {
+  const { colors } = useTheme();
+  const [hover, setHover] = useState(false);
+  const isEmpty = value == null || value === "";
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+    >
+      <span style={{ fontSize: 13, color: colors.text.secondary, fontFamily: ff, lineHeight: "20px" }}>
+        {label}
+      </span>
+      {isEmpty ? (
+        <span style={{ fontSize: 12, color: colors.text.tertiary, fontStyle: "italic", fontFamily: ff }}>—</span>
+      ) : (
+        <>
+          <Chip label={String(value)} size="sm" />
+          {unit && (
+            <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff }}>{unit}</span>
+          )}
+          <span style={{ display: "inline-flex", opacity: hover ? 1 : 0, transition: "opacity 0.12s ease" }}>
+            <CopyButton text={String(value)} size={20} iconSize={14} />
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Deployment ID / 설명 같은 헤더용 한 줄 라벨+값 — 작은 회색 박스 안에서 사용. */
+function CopyableLine({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  const { colors } = useTheme();
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{ display: "flex", alignItems: "center", gap: 8 }}
+    >
+      <span style={{ fontSize: 12, color: colors.text.tertiary, fontFamily: ff, minWidth: 100 }}>{label}</span>
+      <span
+        style={{
+          flex: 1,
+          fontSize: 12,
+          fontFamily: mono ? ffMono : ff,
+          color: colors.text.primary,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {value}
+      </span>
+      <span style={{ display: "inline-flex", opacity: hover ? 1 : 0, transition: "opacity 0.12s ease" }}>
+        <CopyButton text={value} size={20} iconSize={14} />
+      </span>
     </div>
   );
 }
@@ -2433,8 +2875,7 @@ function ScalingPolicyView({ policy }: { policy: ScalingPolicy }) {
               </span>
             )}
           </div>
-          {/* Stabilization preset (flapping 방지) */}
-          <StabilizationPresetView value={policy.stabilization} />
+          {/* Stabilization preset은 기능 미구현 상태라 화면에 노출하지 않음. */}
           {/* Quota guard hint */}
           <div
             style={{
@@ -2801,22 +3242,7 @@ function ScalingPolicyEditor({
             {/* Live threshold preview for all selected targets */}
             {targets.length > 0 && <MultiThresholdPreview targets={targets} />}
 
-            {/* Stabilization */}
-            <FieldGroup label="Stabilization (안정화 윈도우)" hint="짧은 시간 내 반복 변동(플래핑)을 방지합니다.">
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                {STABILIZATION_OPTIONS.map((opt) => (
-                  <PresetCard
-                    key={opt.key}
-                    label={opt.label}
-                    up={opt.up}
-                    down={opt.down}
-                    tagline={opt.tagline}
-                    selected={draft.stabilization === opt.key}
-                    onClick={() => setDraft((d) => ({ ...d, stabilization: opt.key }))}
-                  />
-                ))}
-              </div>
-            </FieldGroup>
+            {/* Stabilization 설정은 기능 미구현 상태라 편집 UI에서 일단 제거. */}
           </>
         )}
 
@@ -2998,21 +3424,7 @@ export function ScalingPolicyForm({
 
           {targets.length > 0 && <MultiThresholdPreview targets={targets} />}
 
-          <FieldGroup label="Stabilization (안정화 윈도우)" hint="짧은 시간 내 반복 변동(플래핑)을 방지합니다.">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-              {STABILIZATION_OPTIONS.map((opt) => (
-                <PresetCard
-                  key={opt.key}
-                  label={opt.label}
-                  up={opt.up}
-                  down={opt.down}
-                  tagline={opt.tagline}
-                  selected={value.stabilization === opt.key}
-                  onClick={() => update({ stabilization: opt.key })}
-                />
-              ))}
-            </div>
-          </FieldGroup>
+          {/* Stabilization 설정은 기능 미구현 상태라 폼에서 일단 제거. */}
         </>
       )}
 

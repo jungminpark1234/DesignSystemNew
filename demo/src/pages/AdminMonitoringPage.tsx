@@ -1148,15 +1148,15 @@ export function AdminMonitoringPage({ onNavigate, onSelectProject, onSelectWorkl
           {scope === "workloads" && (
             <>
               <SectionTitle
-                title="워크로드별 자원 사용 현황"
-                hint={"워크스페이스 내 모든 프로젝트의 워크로드 자원 할당/사용 현황입니다.\n• 할당됨 / 사용됨 컬럼 헤더 클릭으로 정렬\n• 할당 대비 사용률 10% 미만은 주황색 (자원 과다할당 식별)"}
+                title="파드별 자원 사용 현황"
+                hint={"워크스페이스 내 모든 프로젝트의 파드 자원 요청/사용 현황입니다.\n• 요청 / 사용 컬럼 헤더 클릭으로 정렬\n• 요청 대비 사용률 10% 미만은 주황색 (자원 과다할당 식별)"}
               />
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
                 <div style={{ maxWidth: 280, flex: 1 }}>
                   <TextField
                     value={workloadQuery}
                     onChange={(e) => setWorkloadQuery(e.target.value)}
-                    placeholder="워크로드 이름 검색..."
+                    placeholder="파드 또는 워크로드 이름 검색..."
                     leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
                   />
                 </div>
@@ -1165,6 +1165,7 @@ export function AdminMonitoringPage({ onNavigate, onSelectProject, onSelectWorkl
                 workloads={SAMPLE_WORKLOADS.filter((w) => w.workspace === "Data studio")}
                 query={workloadQuery}
                 showProject
+                showCreator
                 onRowClick={(w) => setSelectedWorkload(w)}
               />
             </>

@@ -33,7 +33,7 @@ import {
 import { ResourceGuideModal } from "../components/ResourceGuideModal";
 import { ApplicationMonitoringTab } from "./ApplicationMonitoringTab";
 import { PaginationBar } from "./DataConnectionsPage";
-import { DeploymentDetailView, DeploymentHistoryView, ActiveDeploymentsCard, ScalingConstraintBanner, TrafficEditDrawer, ScalingPolicyForm, DEMO_ACTIVE_DEPLOYMENTS, DEMO_DEPLOYMENT_DETAIL, DEMO_EVENTS, type ActiveDeployment, type DeploymentEvent, type DeploymentSnapshot, type ScalingPolicy, type TrafficEditResult } from "./DeploymentDetailPage";
+import { DeploymentDetailView, DeploymentHistoryView, ActiveDeploymentsCard, ScalingConstraintBanner, ScalingPolicyChip, ScalingStatusBadge, ObservedMetricBar, TrafficEditDrawer, ScalingPolicyForm, DEMO_ACTIVE_DEPLOYMENTS, DEMO_DEPLOYMENT_DETAIL, DEMO_EVENTS, type ActiveDeployment, type DeploymentEvent, type DeploymentSnapshot, type ScalingPolicy, type TrafficEditResult } from "./DeploymentDetailPage";
 import logoTriton from "@ds/icons/catalog/triton.svg";
 import logoMlserver from "@ds/icons/catalog/mlserver.svg";
 import logoProtobuf from "@ds/icons/platform/protobuf.svg";
@@ -660,7 +660,7 @@ function EndpointDetailView({
               </div>
             </div>
           ) : (
-            <TopologyView endpoint={endpoint} deployments={deployments} />
+            <TopologyView endpoint={endpoint} deployments={deployments} activeDeployments={activeDeployments} />
           )
         )}
 
@@ -721,9 +721,8 @@ function EndpointDetailView({
               <ScalingConstraintBanner deployments={activeMapped} />
               <ActiveDeploymentsCard
                 deployments={activeMapped}
-                snapshots={snapshots}
-                onTakeSnapshot={onTakeSnapshot}
-                onRollback={onRollback}
+                // v1에서 수동 스냅샷·롤백 미지원 결정 — 헤더 컨트롤 비활성화.
+                showSnapshotControls={false}
                 title="활성 배포"
                 onRowClick={(a) => {
                   const md = filtered.find((d) => d.name === a.name);
@@ -784,7 +783,7 @@ function EndpointDetailView({
 // ═══════════════════════════════════════════════════════════════════════════════
 // Topology view — Client → REST API → Deployments → Pods
 // ═══════════════════════════════════════════════════════════════════════════════
-function TopologyView({ endpoint, deployments }: { endpoint: InferenceEndpoint; deployments: ModelDeployment[] }) {
+function TopologyView({ endpoint, deployments, activeDeployments = [] }: { endpoint: InferenceEndpoint; deployments: ModelDeployment[]; activeDeployments?: ActiveDeployment[] }) {
   const { colors } = useTheme();
   const activeColor = colors.bg.interactive.runwayPrimary;
   const idleColor   = colors.border.secondary;
@@ -841,7 +840,12 @@ function TopologyView({ endpoint, deployments }: { endpoint: InferenceEndpoint; 
         }}
       >
         {normalizedDeployments.map((d) => (
-          <DeploymentNode key={d.id} deployment={d} runtime={endpoint.runtime} />
+          <DeploymentNode
+            key={d.id}
+            deployment={d}
+            runtime={endpoint.runtime}
+            activeDeployment={activeDeployments.find((a) => a.name === d.name)}
+          />
         ))}
       </div>
     </div>
@@ -1090,7 +1094,16 @@ function InferenceLoggingCard() {
   );
 }
 
-function DeploymentNode({ deployment, runtime: _runtime }: { deployment: ModelDeployment; runtime: ServingRuntime }) {
+function DeploymentNode({
+  deployment,
+  runtime: _runtime,
+  activeDeployment,
+}: {
+  deployment: ModelDeployment;
+  runtime: ServingRuntime;
+  /** 같은 이름의 ActiveDeployment 매칭 — auto-scaling 정책/상태를 카드에 노출하기 위함 */
+  activeDeployment?: ActiveDeployment;
+}) {
   const { colors } = useTheme();
   const replicas = deployment.replicas ?? 1;
   // Only render running pod cards when the deployment is actually deployed.
@@ -1100,6 +1113,10 @@ function DeploymentNode({ deployment, runtime: _runtime }: { deployment: ModelDe
   const trafficWeight = deployment.weight;
   const deploymentNumber = deployment.deploymentNumber ?? 0;
   const auto = deployment.autoScaling ?? { min: 1, max: 10 };
+  const scalingPolicy = activeDeployment?.scaling;
+  const scalingStatus = activeDeployment?.scalingStatus ?? null;
+  const currentPods  = activeDeployment?.currentPods ?? podCount;
+  const isAutoScaling = scalingPolicy?.mode === "auto";
 
   return (
     <div
@@ -1166,6 +1183,38 @@ function DeploymentNode({ deployment, runtime: _runtime }: { deployment: ModelDe
           }
         />
       </div>
+
+      {/* Scaling policy + status — 활성 배포 매칭 시에만 노출.
+          ActiveDeploymentRow의 하단 행과 동일한 칩·뱃지·observed metric bar 패턴. */}
+      {scalingPolicy && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            padding: 8,
+            borderRadius: 8,
+            backgroundColor: colors.bg.secondary,
+            border: `1px solid ${colors.border.tertiary}`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <ScalingPolicyChip policy={scalingPolicy} pods={currentPods} />
+            <ScalingStatusBadge
+              status={scalingStatus}
+              maxR={scalingPolicy.maxReplicas ?? scalingPolicy.replicas}
+            />
+            {scalingPolicy.lastScaledAt && (
+              <span style={{ fontSize: 11, color: colors.text.tertiary, fontFamily: ff }}>
+                마지막 스케일: {scalingPolicy.lastScaledAt}
+              </span>
+            )}
+          </div>
+          {isAutoScaling && scalingPolicy.observed && (
+            <ObservedMetricBar policy={scalingPolicy} />
+          )}
+        </div>
+      )}
 
       {/* Pods — auto-scaled replicas. Stack vertically by default; opt into 2-up only when card is wide enough */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>

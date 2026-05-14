@@ -7,6 +7,7 @@ import { Alert } from "@ds/components/Alert";
 import { Modal } from "@ds/components/Modal";
 import { Checkbox } from "@ds/components/Checkbox";
 import { TextField } from "@ds/components/TextField";
+import { Tooltip } from "@ds/components/Tooltip";
 import { TextArea } from "@ds/components/TextArea";
 import { Select } from "@ds/components/Select";
 import { Radio } from "@ds/components/Radio";
@@ -454,23 +455,6 @@ resources:
     cpu: 4
     memory: 8Gi`;
 
-// PostgreSQL values.yaml 템플릿 (Manual 모드용)
-const DB_VALUES_YAML_TEMPLATE = `# Airflow 외부에서 사용할 PostgreSQL 연결 설정
-# CloudNativePG 또는 직접 호스팅된 PostgreSQL을 직접 지정합니다.
-postgresql:
-  host: my-postgres.example.com
-  port: 5432
-  database: airflow_metadata
-  user: airflow
-  # 비밀번호는 Secret 으로 분리해 관리하세요
-  existingSecret: airflow-db-secret
-  sslmode: require
-
-connection:
-  poolSize: 10
-  maxOverflow: 20
-`;
-
 interface AirflowDeployDrawerProps {
   open: boolean;
   onClose: () => void;
@@ -483,15 +467,30 @@ interface AirflowDeployDrawerProps {
   autoSelectPg?: { id: string; name: string } | null;
 }
 
+/**
+ * Database naming rule shown via the Tooltip help icon next to the
+ * "Database 이름" TextField. Kept short — full details live in helpMessage
+ * below the input.
+ */
+const DB_NAME_RULE_TOOLTIP =
+  "airflow_<프로젝트명> 형식\n" +
+  "영문 소문자, 숫자, _ 만 (최대 63자)\n" +
+  "예: airflow_dsdemo";
+
 export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnpg, onRequestCreatePostgres, autoSelectPg }: AirflowDeployDrawerProps) {
   const { colors } = useTheme();
+  const dbNameHelpIcon = (
+    <Tooltip content={DB_NAME_RULE_TOOLTIP} direction="above-center" tooltipStyle="inverse">
+      <Icon name="help-circle-stroke" size={14} color={colors.icon.tertiary} />
+    </Tooltip>
+  );
 
   const [name, setName] = useState("");
   const [appId, setAppId] = useState("");
   const [appIdManual, setAppIdManual] = useState(false);
   const [desc, setDesc] = useState("");
   const [valuesYaml, setValuesYaml] = useState(AIRFLOW_VALUES_YAML);
-  const [dbMode, setDbMode] = useState<"existing" | "new" | "manual">("existing");
+  const [dbMode, setDbMode] = useState<"existing" | "new">("existing");
   const [selectedCnpg, setSelectedCnpg] = useState("");
   const [createdPgOptions, setCreatedPgOptions] = useState<{ value: string; label: string }[]>([]);
   const [newAppName, setNewAppName] = useState("");
@@ -499,7 +498,6 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
   const [dbName, setDbName] = useState("airflow_metadata");
   const [dbNameManual, setDbNameManual] = useState(false);
   const [dbNameTouched, setDbNameTouched] = useState(false);
-  const [dbValuesYaml, setDbValuesYaml] = useState(DB_VALUES_YAML_TEMPLATE);
   const [links, setLinks] = useState<{ name: string; url: string }[]>([]);
   const [resourceGuideOpen, setResourceGuideOpen] = useState(false);
   const [newDbAdvancedOpen, setNewDbAdvancedOpen] = useState(false);
@@ -552,7 +550,6 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
   })();
 
   const dbNameErr = (() => {
-    if (dbMode === "manual") return null;
     if (!dbNameTouched && !submitted) return null;
     const v = dbName.trim();
     if (!v) return "Database 이름을 입력해주세요";
@@ -581,7 +578,6 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
     setValuesYaml(AIRFLOW_VALUES_YAML);
     setDbMode("existing"); setSelectedCnpg(""); setNewAppName(""); setNewAppNameTouched(false);
     setDbName("airflow_metadata"); setDbNameManual(false); setDbNameTouched(false);
-    setDbValuesYaml(DB_VALUES_YAML_TEMPLATE);
     setLinks([]); setResourceGuideOpen(false); setCreatedPgOptions([]); setNewDbAdvancedOpen(false);
     setSubmitted(false); setNameTouched(false);
     lastAutoSelectId.current = null;
@@ -599,9 +595,6 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
     if (dbMode === "new") {
       if (newPgNameErr) return;
       if (dbNameErr) return;
-    }
-    if (dbMode === "manual") {
-      if (!dbValuesYaml.trim()) return;
     }
     onClose(); reset();
   };
@@ -655,7 +648,6 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
             <div style={{ display: "flex", flexDirection: "column" }}>
               <Radio name="dbMode" label="기존 PostgreSQL 애플리케이션에 연결" checked={dbMode === "existing"} onChange={() => setDbMode("existing")} style={{ padding: "8px 0" }} />
               <Radio name="dbMode" label="새 PostgreSQL 애플리케이션 생성하여 연결" checked={dbMode === "new"} onChange={() => setDbMode("new")} style={{ padding: "8px 0" }} />
-              <Radio name="dbMode" label="values.yaml로 직접 입력 (외부 PostgreSQL)" checked={dbMode === "manual"} onChange={() => setDbMode("manual")} style={{ padding: "8px 0" }} />
             </div>
           </div>
 
@@ -681,6 +673,7 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
                   placeholder="airflow_metadata"
                   state={dbNameErr || isDbNameDuplicateInExistingPg ? "error" : "default"}
                   helpMessage={dbNameErr || (isDbNameDuplicateInExistingPg ? `'${dbName}' 은(는) 이미 ${currentPgValue}에 존재하는 Database입니다.` : "선택한 PostgreSQL 애플리케이션 안에 새로 생성될 논리적 Database 이름입니다.")}
+                  helpIcon={dbNameHelpIcon}
                 />
 
                 {isDbNameDuplicateInExistingPg && (
@@ -715,7 +708,8 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
                 onBlur={() => setDbNameTouched(true)}
                 placeholder="airflow_metadata"
                 state={dbNameErr ? "error" : "default"}
-                helpMessage={dbNameErr || "새 PG 인스턴스 안에서 사용할 논리적 Database 이름입니다. 다른 PG 인스턴스의 Database와 이름이 같아도 무방합니다."} />
+                helpMessage={dbNameErr || "새 PG 인스턴스 안에서 사용할 논리적 Database 이름입니다. 다른 PG 인스턴스의 Database와 이름이 같아도 무방합니다."}
+                helpIcon={dbNameHelpIcon} />
 
               {/* 상세설정 아코디언 */}
               <button onClick={() => setNewDbAdvancedOpen(!newDbAdvancedOpen)} style={{
@@ -739,24 +733,6 @@ export function AirflowDeployDrawer({ open, onClose, existingNames, availableCnp
             </div>
           )}
 
-          {/* ── 3. values.yaml 직접 입력 ─────────────────────────────── */}
-          {dbMode === "manual" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 8, backgroundColor: colors.bg.secondary }}>
-              <Alert
-                status="info"
-                alertStyle="subtle"
-                variant="desc"
-                description="외부에서 호스팅 중인 PostgreSQL을 사용할 때 선택하세요. host, port, database, user, secret 정보를 정확히 입력해야 Airflow가 정상 부팅됩니다."
-              />
-              <CodeEditor
-                label="postgresql values.yaml"
-                value={dbValuesYaml}
-                onChange={setDbValuesYaml}
-                language="yaml"
-                height={260}
-              />
-            </div>
-          )}
         </div>
       </div>
 

@@ -386,7 +386,7 @@ function PlatformPodsTable({ rows }: { rows: PlatformPodRow[] }) {
                     </span>
                   ) : dim(null)}
                 </td>
-                <td style={{ ...cellBase, borderRight: groupBorder, fontFamily: ffMono, fontSize: 12, color: colors.text.secondary }}>
+                <td style={{ ...cellBase, borderRight: groupBorder, color: colors.text.primary }}>
                   {r.podName}
                 </td>
                 <td style={{ ...cellBase, borderRight: groupBorder }}>{dim(r.creator)}</td>

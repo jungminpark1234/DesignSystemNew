@@ -6,6 +6,7 @@ import { StatusChip } from "@ds/components/StatusChip";
 import { ProgressBar } from "@ds/components/ProgressBar";
 import { Table, type TableColumn } from "@ds/components/Table";
 import { Tabs } from "@ds/components/Tabs";
+import { Avatar, getAvatarColorFromInitial } from "@ds/components/Avatar";
 import { spacing, borderRadius, borderWidth } from "@ds/tokens/spacing";
 import { body, fontWeight } from "@ds/tokens/typography";
 import { useTheme } from "../theme";
@@ -75,7 +76,7 @@ function ProjectSidebarHeader({ projectName }: { projectName: string }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Workloads (Application + Inference Endpoint) — 자원 사용 현황 테이블
 // ═══════════════════════════════════════════════════════════════════════════════
-type WorkloadType = "application" | "inference";
+type WorkloadType = "application" | "inference" | "direct";
 type WorkloadStatus = "running" | "stopped" | "failed" | "pending";
 
 export interface Workload {
@@ -84,8 +85,14 @@ export interface Workload {
   name: string;
   workspace: string;
   project: string;
+  /** 'direct' = kubectl/ArgoCD 등 클러스터에 직접 배포된 파드 (Workload 추상화 밖) */
   type: WorkloadType;
   status: WorkloadStatus;
+  /**
+   * 워크로드 생성자. 'direct' 타입은 Runway 외부에서 배포되어 식별자 없음 → null.
+   */
+  creator: string | null;
+  creatorInitial: string | null;
   /** Number of pods backing this workload. Inference: sum of deployed deployments' replicas. */
   podCount: number;
   /**
@@ -124,51 +131,63 @@ export const SAMPLE_WORKLOADS: Workload[] = [
   // ── Application workloads (match ApplicationPage APP_ITEMS by title) ─────────
   // Convention: limit ≈ 1.5–2× allocated (request) for CPU/Memory/Disk; GPU usually request=limit.
   { id: "w1", name: "NLP 실험 노트북", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
+    creator: "Jungmin Park", creatorInitial: "JP",
     podCount: 1,
     cpu:{allocated: 4, limit: 8, used: 0.5, unit:"Cores"}, memory:{allocated: 16, limit: 32, used: 8, unit:"GiB"}, disk:{allocated: 50, limit: 100, used: 30, unit:"GiB"},
     gpu:{allocated: 1, limit: 1, used: 0.7, unit:"GPUs"}, gpuModel: "NVIDIA RTX 2080 Ti",
     gpuCount: 1, gpuUuid: "GPU-a3f1c9", gpuNode: "node-04",
     gpuMemory:{allocated: 11, limit: 11, used: 7.2, unit:"GiB"} },
   { id: "w2", name: "학습 파이프라인 오케스트레이터", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
-    podCount: 2,
-    cpu:{allocated: 4, limit: 6, used: 2.5, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 5, unit:"GiB"}, disk:{allocated: 30, limit: 60, used: 15, unit:"GiB"} },
+    creator: "이서연", creatorInitial: "이",
+    // 1 workload = 3 pods 시나리오: 같은 application의 replicas 3개가 테이블에서 동일 Workload 이름으로 3행 표시됨
+    podCount: 3,
+    cpu:{allocated: 6, limit: 12, used: 3.6, unit:"Cores"}, memory:{allocated: 12, limit: 24, used: 6, unit:"GiB"}, disk:{allocated: 30, limit: 60, used: 15, unit:"GiB"} },
   { id: "w3", name: "데이터 수집 스케줄러", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
+    creator: "이서연", creatorInitial: "이",
     podCount: 1,
     cpu:{allocated: 2, limit: 4, used: 0.4, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 2.1, unit:"GiB"}, disk:{allocated: 30, limit: 60, used: 8, unit:"GiB"} },
   { id: "w4", name: "문서 임베딩 스토어", workspace: "Data studio", project: "NLP Models", type: "application", status: "running",
+    creator: "박지훈", creatorInitial: "박",
     podCount: 1,
     cpu:{allocated: 2, limit: 4, used: 1.2, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 4, unit:"GiB"}, disk:{allocated: 100, limit: 150, used: 65, unit:"GiB"} },
   { id: "w5", name: "이미지 유사도 검색 엔진", workspace: "Data studio", project: "Vision Lab", type: "application", status: "running",
+    creator: "박지훈", creatorInitial: "박",
     podCount: 2,
     cpu:{allocated: 4, limit: 8, used: 2.8, unit:"Cores"}, memory:{allocated: 16, limit: 24, used: 10, unit:"GiB"}, disk:{allocated: 50, limit: 100, used: 22, unit:"GiB"},
     gpu:{allocated: 1, limit: 1, used: 0.4, unit:"GPUs"}, gpuModel: "NVIDIA A10",
     gpuCount: 1, gpuUuid: "—", gpuNode: "—",
     gpuMemory:{allocated: 24, limit: 24, used: 9.5, unit:"GiB"} },
   { id: "w6", name: "데이터 전처리 노트북", workspace: "Data studio", project: "NLP Models", type: "application", status: "stopped",
+    creator: "Jungmin Park", creatorInitial: "JP",
     podCount: 0,
     cpu:{allocated: 4, limit: 8, used: 0, unit:"Cores"}, memory:{allocated: 16, limit: 32, used: 0, unit:"GiB"}, disk:{allocated: 50, limit: 100, used: 8, unit:"GiB"} },
   { id: "w7", name: "챗봇 빌더", workspace: "Data studio", project: "NLP Models", type: "application", status: "failed",
+    creator: "최예진", creatorInitial: "최",
     podCount: 0,
     cpu:{allocated: 2, limit: 4, used: 0, unit:"Cores"}, memory:{allocated: 4, limit: 8, used: 0, unit:"GiB"}, disk:{allocated: 10, limit: 20, used: 0, unit:"GiB"} },
 
   // ── Inference workloads (match InferenceEndpointPage SAMPLE_ENDPOINTS by name) ──
   // podCount = Σ replicas of deployed deployments (see SAMPLE_DEPLOYMENTS in InferenceEndpointPage)
   { id: "w8", name: "ML Classifier Service", workspace: "Data studio", project: "NLP Models", type: "inference", status: "running",
-    podCount: 4, // d1.replicas=2 + d2.replicas=1 + d3.replicas=1 (all deployed)
-    cpu:{allocated: 4, limit: 6, used: 3.0, unit:"Cores"}, memory:{allocated: 8, limit: 12, used: 6, unit:"GiB"}, disk:{allocated: 20, limit: 40, used: 12, unit:"GiB"},
+    creator: "Jungmin Park", creatorInitial: "JP",
+    // classifier-v1을 3 replicas로 두어 "1 model deployment = 3 pods" 시나리오 노출
+    podCount: 5, // d1.replicas=3 + d2.replicas=1 + d3.replicas=1 (all deployed)
+    cpu:{allocated: 5, limit: 8, used: 3.6, unit:"Cores"}, memory:{allocated: 10, limit: 15, used: 7, unit:"GiB"}, disk:{allocated: 25, limit: 50, used: 15, unit:"GiB"},
     gpu:{allocated: 1, limit: 1, used: 0.85, unit:"GPUs"}, gpuModel: "NVIDIA A10",
     gpuCount: 1, gpuUuid: "—", gpuNode: "—",
-    gpuMemory:{allocated: 24, limit: 24, used: 19.8, unit:"GiB"},
+    gpuMemory:{allocated: 30, limit: 30, used: 24, unit:"GiB"},
     deployments: [
-      { name: "classifier-v1",     replicas: 2 },
+      { name: "classifier-v1",     replicas: 3 },
       { name: "classifier-v2",     replicas: 1 },
       { name: "classifier-canary", replicas: 1 },
     ] },
   { id: "w9", name: "Degraded Service API", workspace: "Data studio", project: "NLP Models", type: "inference", status: "running",
+    creator: "Jungmin Park", creatorInitial: "JP",
     podCount: 2, // d4.replicas=2 (deployed)
     cpu:{allocated: 2, limit: 4, used: 1.5, unit:"Cores"}, memory:{allocated: 8, limit: 16, used: 5, unit:"GiB"}, disk:{allocated: 20, limit: 40, used: 10, unit:"GiB"},
     deployments: [{ name: "tagger-v1", replicas: 2 }] },
   { id: "w10", name: "Multi-Model Vision API", workspace: "Data studio", project: "Vision Lab", type: "inference", status: "running",
+    creator: "박지훈", creatorInitial: "박",
     podCount: 3, // d5.replicas=2 + d6.replicas=1 (both deployed)
     cpu:{allocated: 4, limit: 6, used: 3.1, unit:"Cores"}, memory:{allocated: 16, limit: 24, used: 12, unit:"GiB"}, disk:{allocated: 30, limit: 50, used: 18, unit:"GiB"},
     gpu:{allocated: 2, limit: 2, used: 1.7, unit:"GPUs"}, gpuModel: "NVIDIA A100 40GB",
@@ -179,11 +198,27 @@ export const SAMPLE_WORKLOADS: Workload[] = [
       { name: "detector-small", replicas: 1 },
     ] },
   { id: "w11", name: "Progressing Deployment API", workspace: "Recsys", project: "Personalization", type: "inference", status: "pending",
+    creator: "최예진", creatorInitial: "최",
     podCount: 0, // no deployed deployments
     cpu:{allocated: 2, limit: 4, used: 0, unit:"Cores"}, memory:{allocated: 4, limit: 8, used: 0, unit:"GiB"}, disk:{allocated: 10, limit: 20, used: 0, unit:"GiB"} },
   { id: "w12", name: "Empty Endpoint (No Models)", workspace: "Recsys", project: "Personalization", type: "inference", status: "pending",
+    creator: "최예진", creatorInitial: "최",
     podCount: 0, // no deployments
     cpu:{allocated: 2, limit: 4, used: 0, unit:"Cores"}, memory:{allocated: 4, limit: 8, used: 0, unit:"GiB"}, disk:{allocated: 10, limit: 20, used: 0, unit:"GiB"} },
+
+  // ── Direct-deploy pods (kubectl / ArgoCD) ───────────────────────────────────
+  // Runway 외부에서 클러스터에 직접 배포된 파드.
+  // 워크로드 추상화 밖이라 워크로드명/유형/생성자 모두 "-" 로 표시되고,
+  // 행 클릭 시 워크로드 상세 페이지로 진입하지 않는다.
+  // PRD §1.조회 대상 — "kubectl 등을 통해 클러스터에 직접 배포된 파드도 포함"
+  { id: "w13", name: "batch-job-9f2e1b-qwert", workspace: "Recsys", project: "Personalization", type: "direct", status: "running",
+    creator: null, creatorInitial: null,
+    podCount: 1,
+    cpu:{allocated: 4, limit: 4, used: 3.9, unit:"Cores"}, memory:{allocated: 16, limit: 16, used: 15.1, unit:"GiB"}, disk:{allocated: 0, limit: 0, used: 3.4, unit:"GiB"} },
+  { id: "w14", name: "argo-rollout-canary-7b3c2a-vbnmm", workspace: "Data studio", project: "Vision Lab", type: "direct", status: "running",
+    creator: null, creatorInitial: null,
+    podCount: 1,
+    cpu:{allocated: 1, limit: 2, used: 0.4, unit:"Cores"}, memory:{allocated: 2, limit: 4, used: 1.2, unit:"GiB"}, disk:{allocated: 0, limit: 0, used: 0.5, unit:"GiB"} },
 ];
 
 const WORKLOAD_STATUS_MAP: Record<WorkloadStatus, { label: string; state: "success" | "stopped" | "error" | "pending" }> = {
@@ -194,8 +229,9 @@ const WORKLOAD_STATUS_MAP: Record<WorkloadStatus, { label: string; state: "succe
 };
 
 const WORKLOAD_TYPE_LABEL: Record<WorkloadType, string> = {
-  application: "Application",
-  inference:   "Inference",
+  application: "애플리케이션",
+  inference:   "추론 엔드포인트",
+  direct:      "-",
 };
 
 // ─── Pod-level row (output of expandToPods) ──────────────────────────────────
@@ -203,20 +239,29 @@ const WORKLOAD_TYPE_LABEL: Record<WorkloadType, string> = {
 // for application it's the workload name; for inference it's the deployment
 // name (so all replicas of the same deployment share a parent and link to
 // the same deployment detail).
+//
+// 'direct' kind → kubectl/ArgoCD로 직접 배포된 파드. workload 추상화 밖이라
+// parentWorkload는 null, parentName/creator는 '-' 로 표시되고 행 클릭은
+// 비활성화된다 (PRD §4 예외 케이스).
 export interface PodTableRow {
   podId: string;
   podName: string;
   workspace: string;
   project: string;
   status: WorkloadStatus;
-  /** The workload this pod belongs to — used for onRowClick navigation. */
-  parentWorkload: Workload;
-  /** Display name shown in the "Workload" column. */
+  /** The workload this pod belongs to — used for onRowClick navigation. null for direct-deploy pods. */
+  parentWorkload: Workload | null;
+  /** Display name shown in the "Workload" column. '-' for direct-deploy. */
   parentName: string;
-  /** "application" → links to app detail; "inference-deployment" → links to deployment detail. */
-  parentKind: "application" | "inference-deployment";
+  /** Type label shown in the "워크로드 유형" column. */
+  parentTypeLabel: string;
+  /** "application" → links to app detail; "inference-deployment" → links to deployment detail; "direct" → no link. */
+  parentKind: "application" | "inference-deployment" | "direct";
   /** For inference pods, the model deployment name (= parentName). Helpful for downstream routing. */
   deploymentName?: string;
+  /** Creator label + initial. null = direct-deploy (Runway 외부). */
+  creator: string | null;
+  creatorInitial: string | null;
   cpu:    { allocated: number; limit: number; used: number; unit: string };
   memory: { allocated: number; limit: number; used: number; unit: string };
   disk:   { allocated: number; limit: number; used: number; unit: string };
@@ -254,6 +299,33 @@ function perPod(value: number, total: number): number {
  */
 export function expandToPods(w: Workload): PodTableRow[] {
   if (w.podCount === 0) return [];
+
+  // Direct-deploy 파드는 fan-out 없이 1행. Workload.name 자체가 pod 이름.
+  if (w.type === "direct") {
+    return [{
+      podId: `${w.id}-pod-0`,
+      podName: w.name,
+      workspace: w.workspace,
+      project: w.project,
+      status: w.status,
+      parentWorkload: null,           // 워크로드 상세 페이지 없음 → 행 클릭 비활성화
+      parentName: "-",                // 워크로드명 컬럼: "-"
+      parentTypeLabel: "-",           // 워크로드 유형 컬럼: "-"
+      parentKind: "direct",
+      creator: null,
+      creatorInitial: null,
+      cpu:    { ...w.cpu },
+      memory: { ...w.memory },
+      disk:   { ...w.disk },
+      gpu:    w.gpu ? { ...w.gpu } : undefined,
+      gpuModel: w.gpuModel,
+      gpuCount: w.gpuCount,
+      gpuUuid: w.gpuUuid,
+      gpuNode: w.gpuNode,
+      gpuMemory: w.gpuMemory ? { ...w.gpuMemory } : undefined,
+    }];
+  }
+
   // Build a flat list of (deploymentName | null) per pod index.
   let deploymentAssignment: (string | null)[] = [];
   if (w.type === "inference" && w.deployments && w.deployments.length > 0) {
@@ -273,6 +345,9 @@ export function expandToPods(w: Workload): PodTableRow[] {
     const parentName = deploymentName ?? w.name;
     const parentKind: PodTableRow["parentKind"] =
       deploymentName ? "inference-deployment" : "application";
+    const parentTypeLabel = deploymentName
+      ? "모델 디플로이먼트"
+      : WORKLOAD_TYPE_LABEL[w.type];
     const podShortId = hashStr(`${w.id}-${i}`, 5);
     const podName = `${parentName}-${podShortId.slice(0, 3)}-${String(i).padStart(2, "0")}`;
     rows.push({
@@ -283,8 +358,11 @@ export function expandToPods(w: Workload): PodTableRow[] {
       status: w.status,
       parentWorkload: w,
       parentName,
+      parentTypeLabel,
       parentKind,
       deploymentName: deploymentName ?? undefined,
+      creator: w.creator,
+      creatorInitial: w.creatorInitial,
       cpu:    { allocated: perPod(w.cpu.allocated, total),    limit: perPod(w.cpu.limit, total),    used: perPod(w.cpu.used, total),    unit: w.cpu.unit },
       memory: { allocated: perPod(w.memory.allocated, total), limit: perPod(w.memory.limit, total), used: perPod(w.memory.used, total), unit: w.memory.unit },
       disk:   { allocated: perPod(w.disk.allocated, total),   limit: perPod(w.disk.limit, total),   used: perPod(w.disk.used, total),   unit: w.disk.unit },
@@ -311,15 +389,17 @@ type WorkloadSortKey =
   | "diskAllocated" | "diskLimit" | "diskUsed" | "diskReqRatio" | "diskLimRatio"
   | "gpuAllocated" | "gpuLimit" | "gpuUsed" | "gpuReqRatio" | "gpuLimRatio";
 
-export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = false, showProject = false }: {
+export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = false, showProject = false, showCreator = false }: {
   workloads: Workload[];
   query: string;
-  /** Fired with the parent workload — multiple pod rows of the same parent all yield the same workload, so consumers can route to the same screen. */
+  /** Fired with the parent workload — multiple pod rows of the same parent all yield the same workload, so consumers can route to the same screen. Not fired for direct-deploy pods (parentWorkload is null). */
   onRowClick?: (w: Workload) => void;
   /** 워크스페이스 컬럼 표시 (Runway Admin 등) */
   showWorkspace?: boolean;
   /** 프로젝트 컬럼 표시 (Workspace Monitoring 등) */
   showProject?: boolean;
+  /** 생성자 컬럼 표시 — PRD §1: 추론 엔드포인트/워크스페이스/플랫폼 관리자 뷰에서 사용 */
+  showCreator?: boolean;
 }) {
   const { colors } = useTheme();
   const [sort, setSort] = useState<{ key: WorkloadSortKey; dir: "asc" | "desc" }>({ key: "cpuAllocated", dir: "desc" });
@@ -423,10 +503,12 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
         <thead>
           {/* Group header */}
           <tr>
-            <th rowSpan={2} style={{ ...headerBase, position: "sticky", left: 0, zIndex: 2, minWidth: 220, borderRight: groupBorder }}>Workload</th>
+            <th rowSpan={2} style={{ ...headerBase, position: "sticky", left: 0, zIndex: 2, minWidth: 240, borderRight: groupBorder }}>Pod</th>
+            <th rowSpan={2} style={headerBase}>Workload</th>
+            <th rowSpan={2} style={headerBase}>워크로드 유형</th>
             {showWorkspace && <th rowSpan={2} style={headerBase}>Workspace</th>}
             {showProject && <th rowSpan={2} style={headerBase}>Project</th>}
-            <th rowSpan={2} style={headerBase}>Pod</th>
+            {showCreator && <th rowSpan={2} style={headerBase}>생성자</th>}
             <th rowSpan={2} style={{ ...headerBase, borderRight: groupBorder }}>Status</th>
             <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>CPU</th>
             <th colSpan={5} style={{ ...headerBase, textAlign: "center", borderRight: groupBorder }}>Memory</th>
@@ -477,10 +559,14 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
             return (
               <tr
                 key={p.podId}
-                onClick={() => onRowClick?.(p.parentWorkload)}
-                style={{ cursor: onRowClick ? "pointer" : "default", borderTop: `1px solid ${colors.border.tertiary}` }}
+                onClick={() => p.parentWorkload && onRowClick?.(p.parentWorkload)}
+                style={{
+                  // Direct-deploy 파드는 워크로드 상세가 없어 클릭 비활성화
+                  cursor: onRowClick && p.parentWorkload ? "pointer" : "default",
+                  borderTop: `1px solid ${colors.border.tertiary}`,
+                }}
                 onMouseEnter={(e) => {
-                  if (onRowClick) {
+                  if (onRowClick && p.parentWorkload) {
                     e.currentTarget.style.backgroundColor = colors.bg.secondary;
                     setHoveredId(p.podId);
                   }
@@ -490,6 +576,7 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
                   setHoveredId(null);
                 }}
               >
+                {/* Pod name — sticky, primary identifier for each row. */}
                 <td style={{
                   ...cellBase,
                   position: "sticky",
@@ -497,43 +584,53 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
                   zIndex: 1,
                   backgroundColor: hoveredId === p.podId ? colors.bg.secondary : colors.bg.primary,
                   borderRight: groupBorder,
+                  color: colors.text.primary,
                   fontWeight: 500,
                   transition: "background-color 0.12s ease",
                 }}>
-                  {/* Parent name — clickable target. Multiple pod rows share the
-                      same parent; clicking any one opens the same destination. */}
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <Icon
-                      name={p.parentKind === "application" ? "application" : "inference_endpoint"}
-                      size={14}
-                      color={colors.icon.secondary}
-                    />
-                    <span style={{
-                      color: onRowClick ? colors.text.interactive.runwayPrimary : colors.text.primary,
-                      textDecoration: onRowClick ? "underline" : "none",
-                      textUnderlineOffset: 2,
-                    }}>
-                      {p.parentName}
-                    </span>
-                    {onRowClick && (
-                      <span
-                        aria-hidden
-                        style={{
-                          display: "inline-flex",
-                          opacity: hoveredId === p.podId ? 1 : 0,
-                          transition: "opacity 0.12s ease",
-                        }}
-                      >
-                        <Icon name="chevron-right" size={14} color={colors.icon.secondary} />
+                  {p.podName}
+                </td>
+                {/* Workload — parent (application or model deployment). Multiple pod
+                    rows share the same parent; clicking any one opens the same destination.
+                    Direct-deploy 파드는 워크로드 추상화가 없어 '-' 로 표시. */}
+                <td style={cellBase}>
+                  {p.parentKind === "direct" ? (
+                    <span style={{ color: colors.text.tertiary, fontStyle: "italic" }}>-</span>
+                  ) : (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Icon
+                        name={p.parentKind === "application" ? "application" : "inference_endpoint"}
+                        size={14}
+                        color={colors.icon.secondary}
+                      />
+                      <span style={{ color: colors.text.secondary }}>
+                        {p.parentName}
                       </span>
-                    )}
-                  </span>
+                    </span>
+                  )}
+                </td>
+                {/* 워크로드 유형 — 애플리케이션 / 추론 엔드포인트 / 모델 디플로이먼트 / '-' */}
+                <td style={cellBase}>
+                  {p.parentKind === "direct" ? (
+                    <span style={{ color: colors.text.tertiary, fontStyle: "italic" }}>-</span>
+                  ) : (
+                    <span style={{ color: colors.text.secondary }}>{p.parentTypeLabel}</span>
+                  )}
                 </td>
                 {showWorkspace && <td style={{ ...cellBase, color: colors.text.secondary }}>{p.workspace}</td>}
                 {showProject && <td style={{ ...cellBase, color: colors.text.secondary }}>{p.project}</td>}
-                <td style={{ ...cellBase, fontFamily: ffMono, fontSize: 12, color: colors.text.secondary }}>
-                  {p.podName}
-                </td>
+                {showCreator && (
+                  <td style={cellBase}>
+                    {p.creator && p.creatorInitial ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: spacing[8] }}>
+                        <Avatar initial={p.creatorInitial} size="sm" color={getAvatarColorFromInitial(p.creatorInitial)} />
+                        <span style={{ color: colors.text.secondary }}>{p.creator}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: colors.text.tertiary, fontStyle: "italic" }}>-</span>
+                    )}
+                  </td>
+                )}
                 <td style={{ ...cellBase, borderRight: groupBorder }}><StatusChip state={st.state} size="sm" label={st.label} /></td>
 
                 <ResCell value={p.cpu.allocated}  unit={p.cpu.unit} />
@@ -612,7 +709,7 @@ export function WorkloadsTable({ workloads, query, onRowClick, showWorkspace = f
           })}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={3 /* base: Workload, Pod, Status */ + 5 + 5 + 5 /* CPU/Mem/Disk */ + 5 /* GPU Core */ + 4 /* GPU metadata */ + 5 /* GPU Memory */ + (showWorkspace ? 1 : 0) + (showProject ? 1 : 0)} style={{ ...cellBase, textAlign: "center", color: colors.text.tertiary, padding: `${spacing[32]} ${spacing[12]}` }}>
+              <td colSpan={4 /* base: Pod, Workload, 워크로드 유형, Status */ + 5 + 5 + 5 /* CPU/Mem/Disk */ + 5 /* GPU Core */ + 4 /* GPU metadata */ + 5 /* GPU Memory */ + (showWorkspace ? 1 : 0) + (showProject ? 1 : 0) + (showCreator ? 1 : 0)} style={{ ...cellBase, textAlign: "center", color: colors.text.tertiary, padding: `${spacing[32]} ${spacing[12]}` }}>
                 일치하는 파드가 없습니다.
               </td>
             </tr>
@@ -1114,15 +1211,15 @@ export function ProjectMonitoringPage({ onNavigate, projectName = "NLP Models", 
           {scope === "workload" && (
             <div>
               <SectionTitle
-                title="워크로드별 자원 사용 현황"
-                hint={"프로젝트의 모든 애플리케이션 / 추론 엔드포인트의 자원 할당량과 실제 사용량입니다.\n• 할당됨 / 사용됨 컬럼 헤더를 클릭해 정렬할 수 있습니다.\n• 할당 대비 사용률이 10% 미만인 셀은 주황색으로 표시되어 자원 과다할당 워크로드를 식별할 수 있습니다."}
+                title="파드별 자원 사용 현황"
+                hint={"프로젝트의 모든 애플리케이션 / 추론 엔드포인트 파드의 자원 요청량과 실제 사용량입니다.\n• 요청 / 사용 컬럼 헤더를 클릭해 정렬할 수 있습니다.\n• 요청 대비 사용률이 10% 미만인 셀은 주황색으로 표시되어 자원 과다할당 파드를 식별할 수 있습니다."}
               />
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
                 <div style={{ maxWidth: 280, flex: 1 }}>
                   <TextField
                     value={workloadQuery}
                     onChange={(e) => setWorkloadQuery(e.target.value)}
-                    placeholder="워크로드 이름 검색..."
+                    placeholder="파드 또는 워크로드 이름 검색..."
                     leadingIcon={<Icon name="search" size={16} color={colors.icon.secondary} />}
                   />
                 </div>
