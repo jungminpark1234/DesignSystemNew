@@ -3,17 +3,24 @@
   "configurations": [
     {
       "name": "demo",
-      "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "PATH=/opt/homebrew/bin:$PATH exec npx vite --port 5180"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "5180"],
       "port": 5180,
       "cwd": "demo"
     },
     {
       "name": "docs",
-      "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "PATH=/opt/homebrew/bin:$PATH exec npx vite"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite"],
       "port": 5174,
       "cwd": "docs"
+    },
+    {
+      "name": "runway-demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@design-system-demo/runway-demo", "exec", "vite", "--host", "0.0.0.0", "--port", "5178"],
+      "port": 5178,
+      "cwd": "design-system-demo"
     }
   ]
 }
