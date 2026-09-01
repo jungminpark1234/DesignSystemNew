@@ -6,7 +6,15 @@
 # branch and only if the tree is dirty. Never force-pushes.
 set -u
 
-REPO="${AUTOPUSH_REPO:-/d/design-system-demo}"
+# 레포 위치가 머신마다 다르다 — 이 레포 안에 두기도 하고 형제 경로에 두기도 한다.
+# launch.json 과 같은 후보 순서로 찾는다. AUTOPUSH_REPO 로 덮어쓸 수 있다.
+if [ -z "${AUTOPUSH_REPO:-}" ]; then
+  here="$(cd "$(dirname "$0")/.." && pwd)"
+  for p in "$here/design-system-demo" "$here/../../design-system-demo" /d/design-system-demo; do
+    [ -d "$p/.git" ] && { AUTOPUSH_REPO="$(cd "$p" && pwd)"; break; }
+  done
+fi
+REPO="${AUTOPUSH_REPO:-}"
 BRANCH="${AUTOPUSH_BRANCH:-feat/runway-prd-274-272-comments}"
 DELAY="${AUTOPUSH_DELAY:-1800}"          # 30 min; override for testing
 PIDFILE="$REPO/.git/claude-autopush.pid"

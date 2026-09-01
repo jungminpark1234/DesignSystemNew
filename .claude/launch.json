@@ -2,25 +2,25 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "demo",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "5180"],
+      "_comment": "실제 작업은 design-system-demo 레포에서 한다. 그 레포의 위치가 머신마다 다르다 — 이 레포 안에 두기도 하고(gitignore 됨) 형제 경로에 두기도 한다. cwd 는 프로젝트 루트 안의 상대경로만 받아 한 값으로 못 적으므로, 셸에서 후보를 순서대로 찾아 들어간다. 새 배치가 생기면 아래 목록에만 더하면 된다. 예전에는 이 레포의 demo/ 가 5180 을 잡아 옛 화면이 떴다 — 그 항목은 지웠다.",
+      "name": "runway-demo",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "PATH=/opt/homebrew/bin:$PATH; for p in design-system-demo ../../design-system-demo /d/design-system-demo; do [ -d \"$p/apps/runway-demo\" ] && { cd \"$p\"; found=1; break; }; done; [ -n \"${found:-}\" ] || { echo 'design-system-demo 를 찾지 못했습니다 — launch.json 의 후보 경로를 확인하세요' >&2; exit 1; }; exec pnpm --filter @design-system-demo/runway-demo exec vite --host 0.0.0.0 --port 5180 --strictPort"
+      ],
       "port": 5180,
-      "cwd": "demo"
+      "autoPort": false
     },
     {
       "name": "docs",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "PATH=/opt/homebrew/bin:$PATH; exec npx vite"
+      ],
       "port": 5174,
       "cwd": "docs"
-    },
-    {
-      "name": "runway-demo",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@design-system-demo/runway-demo", "exec", "vite", "--host", "0.0.0.0", "--port", "5178"],
-      "port": 5178,
-      "cwd": "design-system-demo"
     }
   ]
 }
