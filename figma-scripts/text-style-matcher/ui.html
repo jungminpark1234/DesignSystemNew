@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --bg: var(--figma-color-bg, #fff);
+    --bg2: var(--figma-color-bg-secondary, #f5f5f5);
+    --hover: var(--figma-color-bg-hover, #f0f0f0);
+    --text: var(--figma-color-text, #1e1e1e);
+    --text2: var(--figma-color-text-secondary, #6b6b6b);
+    --text3: var(--figma-color-text-tertiary, #9a9a9a);
+    --border: var(--figma-color-border, #e6e6e6);
+    --brand: var(--figma-color-bg-brand, #0d99ff);
+    --onbrand: var(--figma-color-text-onbrand, #fff);
+    --ok: var(--figma-color-text-success, #14ae5c);
+    --warn: var(--figma-color-text-warning, #b86200);
+    --danger: var(--figma-color-text-danger, #f24822);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: flex; flex-direction: column;
+    background: var(--bg); color: var(--text);
+    font: 11px/16px Inter, "Pretendard", system-ui, sans-serif;
+  }
+  header { padding: 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .grow { flex: 1; min-width: 0; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg label { padding: 4px 10px; cursor: pointer; color: var(--text2); white-space: nowrap; }
+  .seg label + label { border-left: 1px solid var(--border); }
+  .seg input { display: none; }
+  .seg input:checked + span { color: var(--text); font-weight: 600; }
+  .seg label:has(input:checked) { background: var(--bg2); }
+  .seg label:has(input:disabled) { cursor: default; opacity: .45; }
+  button {
+    font: inherit; border-radius: 6px; padding: 5px 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button.primary { background: var(--brand); border-color: var(--brand); color: var(--onbrand); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--brand); filter: brightness(1.08); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.link { border: 0; padding: 0 4px; color: var(--brand); background: none; }
+  details { color: var(--text2); }
+  summary { cursor: pointer; user-select: none; }
+  .opts { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 8px 0 0 12px; }
+  .opts label { display: flex; align-items: center; gap: 6px; color: var(--text); }
+  .opts input[type="text"], .opts input[type="number"] {
+    font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 6px;
+  }
+  .hint { color: var(--text3); }
+  #status { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text2); display: none; }
+  #status.on { display: block; }
+  #status .err { color: var(--danger); }
+  #filters { display: none; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  #filters.on { display: flex; }
+  #filters button { padding: 2px 8px; border-radius: 10px; color: var(--text2); }
+  #filters button.on { background: var(--bg2); color: var(--text); font-weight: 600; border-color: var(--text3); }
+  main { flex: 1; overflow: auto; }
+  .empty { padding: 32px 16px; text-align: center; color: var(--text2); }
+  .group { display: grid; grid-template-columns: 16px 1fr; gap: 4px 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .group:hover { background: var(--hover); }
+  .group input[type="checkbox"] { margin: 2px 0 0; }
+  .sig { font-weight: 600; }
+  .meta { color: var(--text2); white-space: nowrap; }
+  .sample { color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pick { grid-column: 2; display: flex; align-items: center; gap: 6px; }
+  .pick select {
+    flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 4px; padding: 3px 4px;
+  }
+  .badge { padding: 0 6px; border-radius: 8px; font-weight: 600; white-space: nowrap; border: 1px solid currentColor; }
+  .badge.exact { color: var(--ok); }
+  .badge.near { color: var(--brand); }
+  .badge.far { color: var(--warn); }
+  .badge.none { color: var(--text3); }
+  .diff { color: var(--text3); white-space: nowrap; }
+  footer { padding: 10px 12px; border-top: 1px solid var(--border); display: none; align-items: center; gap: 8px; }
+  footer.on { display: flex; }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <span>범위</span>
+    <div class="seg" id="scope">
+      <label><input type="radio" name="scope" value="selection" /><span id="selLabel">선택 영역</span></label>
+      <label><input type="radio" name="scope" value="page" checked /><span>이 페이지</span></label>
+      <label><input type="radio" name="scope" value="file" /><span>파일 전체</span></label>
+    </div>
+    <div class="grow"></div>
+    <button class="primary" id="scan">찾기</button>
+  </div>
+  <details>
+    <summary>옵션</summary>
+    <div class="opts">
+      <label><input type="checkbox" id="includeLocal" checked />이 파일의 로컬 텍스트 스타일도 후보로</label>
+      <label><input type="checkbox" id="includeUsedLibrary" />이 범위에서 쓰는 다른 라이브러리 스타일도 후보로</label>
+      <label><input type="checkbox" id="restyleForeign" />후보에 없는 스타일이 붙은 글자도 바꾸기</label>
+      <label><input type="checkbox" id="skipLibraryInstances" checked />라이브러리 컴포넌트 안 글자는 건너뛰기</label>
+      <label><input type="checkbox" id="skipHidden" checked />숨긴 레이어는 건너뛰기</label>
+      <label>이름이 이걸로 시작하는 레이어 안은 건너뛰기 <input type="text" id="skipPrefixes" value="DHS" size="14" /> <span class="hint">쉼표로 여러 개</span></label>
+      <label>근접으로 볼 크기 차이 <input type="number" id="sizeTolerance" value="1" min="0" max="8" step="0.5" style="width:52px" /> px</label>
+      <label><input type="checkbox" id="centerSingleLine" checked />한 줄 고정 크기 글자는 세로 가운데 정렬</label>
+    </div>
+  </details>
+</header>
+<div id="status"></div>
+<div id="filters"></div>
+<main id="list"><div class="empty">범위를 고르고 [찾기]를 누르면<br />텍스트 스타일이 없는 글자를 묶어서 보여 줍니다.</div></main>
+<footer id="footer">
+  <label class="row"><input type="checkbox" id="checkAll" />보이는 묶음 모두</label>
+  <div class="grow hint" id="pickedInfo"></div>
+  <button class="primary" id="apply" disabled>적용</button>
+</footer>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const post = (msg) => parent.postMessage({ pluginMessage: msg }, "*");
+  const CONF_LABEL = { exact: "정확", near: "근접", far: "먼 짝", none: "짝 없음" };
+  const FILTERS = ["all", "exact", "near", "far", "none"];
+
+  let result = null;
+  let filter = "all";
+  let lastScope = "page";
+  /** 묶음 id → { checked, styleId } */
+  const picks = new Map();
+
+  function opts() {
+    return {
+      includeLocal: $("includeLocal").checked,
+      includeUsedLibrary: $("includeUsedLibrary").checked,
+      restyleForeign: $("restyleForeign").checked,
+      skipLibraryInstances: $("skipLibraryInstances").checked,
+      skipHidden: $("skipHidden").checked,
+      skipPrefixes: $("skipPrefixes").value.split(",").map((s) => s.trim()).filter(Boolean),
+      sizeTolerance: Number($("sizeTolerance").value) || 0,
+      centerSingleLine: $("centerSingleLine").checked,
+    };
+  }
+  const scope = () => document.querySelector('input[name="scope"]:checked').value;
+
+  function status(html) { const el = $("status"); el.innerHTML = html; el.classList.toggle("on", !!html); }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const lhText = (v) => (v == null ? "자동" : v);
+  const list = (o) => Object.entries(o).map(([k, n]) => `${esc(k)} ${n}`).join(" · ");
+
+  function styleById(id) { return result && result.catalog.find((s) => s.id === id); }
+
+  /** 고른 스타일과 글자 사이 차이 — 화면에 '크기 +1 · 굵기 −100' 처럼. */
+  function confidenceOf(sig, style) {
+    if (!style) return { conf: "none", diff: "" };
+    const dSize = style.size - sig.size;
+    const dWeight = style.weight - sig.weight;
+    const parts = [];
+    if (dSize) parts.push(`크기 ${dSize > 0 ? "+" : "−"}${Math.abs(dSize)}`);
+    if (dWeight) parts.push(`굵기 ${dWeight > 0 ? "+" : "−"}${Math.abs(dWeight)}`);
+    if (style.lineHeight != null && sig.lineHeight != null && style.lineHeight !== sig.lineHeight) parts.push(`줄 ${lhText(sig.lineHeight)}→${style.lineHeight}`);
+    if (style.mono !== sig.mono) parts.push("글꼴 종류 다름");
+    const tol = opts().sizeTolerance;
+    const conf = style.mono !== sig.mono ? "far"
+      : !dSize && !dWeight ? "exact"
+      : Math.abs(dSize) <= tol && Math.abs(dWeight) <= 100 ? "near" : "far";
+    return { conf, diff: parts.join(" · ") };
+  }
+
+  function currentConf(g) {
+    const p = picks.get(g.id);
+    return confidenceOf(g.sig, styleById(p && p.styleId)).conf;
+  }
+
+  function renderFilters() {
+    const counts = { all: result.groups.length, exact: 0, near: 0, far: 0, none: 0 };
+    for (const g of result.groups) counts[currentConf(g)]++;
+    $("filters").innerHTML = FILTERS.map((f) =>
+      `<button data-f="${f}" class="${f === filter ? "on" : ""}">${f === "all" ? "전체" : CONF_LABEL[f]} ${counts[f]}</button>`).join("");
+    $("filters").classList.toggle("on", result.groups.length > 0);
+  }
+
+  function styleOptions(selected) {
+    const label = (s) => `${s.name} — ${s.size} · ${s.fontStyle} · 줄 ${lhText(s.lineHeight)}${s.source === "DS" ? "" : ` (${s.source})`}`;
+    const groups = [["DS", "DS 기본"], ["로컬", "로컬"], ["라이브러리", "다른 라이브러리"]];
+    let html = `<option value="">스타일 고르기</option>`;
+    for (const [src, title] of groups) {
+      const items = result.catalog.filter((s) => s.source === src);
+      if (!items.length) continue;
+      html += `<optgroup label="${title}">` + items.map((s) =>
+        `<option value="${esc(s.id)}" ${s.id === selected ? "selected" : ""}>${esc(label(s))}</option>`).join("") + `</optgroup>`;
+    }
+    return html;
+  }
+
+  function visibleGroups() { return result.groups.filter((g) => filter === "all" || currentConf(g) === filter); }
+
+  function renderList() {
+    const groups = visibleGroups();
+    if (!result.groups.length) {
+      $("list").innerHTML = `<div class="empty">텍스트 스타일이 없는 글자가 없습니다.</div>`;
+    } else if (!groups.length) {
+      $("list").innerHTML = `<div class="empty">이 조건에 맞는 묶음이 없습니다.</div>`;
+    } else {
+      $("list").innerHTML = groups.map((g) => {
+        const p = picks.get(g.id);
+        const { conf, diff } = confidenceOf(g.sig, styleById(p.styleId));
+        const s = g.sig;
+        return `<div class="group" data-id="${esc(g.id)}">
+          <input type="checkbox" data-act="check" ${p.checked ? "checked" : ""} ${p.styleId ? "" : "disabled"} />
+          <div>
+            <div class="row">
+              <span class="sig grow">${esc(s.family)} ${esc(s.fontStyle)} · ${s.size} · 줄 ${lhText(s.lineHeight)}${s.foreign ? ' <span class="hint">(다른 스타일)</span>' : ""}</span>
+              <span class="meta">${g.count}곳 · 레이어 ${g.layers}</span>
+              <button class="link" data-act="select">보기</button>
+            </div>
+            <div class="sample">${esc(g.sample || "(빈 칸)")}</div>
+          </div>
+          <div class="pick">
+            <select data-act="style">${styleOptions(p.styleId)}</select>
+            <span class="badge ${conf}">${CONF_LABEL[conf]}</span>
+          </div>
+          ${diff ? `<div class="pick diff">${esc(diff)}</div>` : ""}
+        </div>`;
+      }).join("");
+    }
+    renderFilters();
+    renderFooter();
+  }
+
+  function renderFooter() {
+    const vis = visibleGroups();
+    const chosen = result.groups.filter((g) => { const p = picks.get(g.id); return p.checked && p.styleId; });
+    const spots = chosen.reduce((n, g) => n + g.count, 0);
+    $("pickedInfo").textContent = chosen.length ? `${chosen.length}묶음 · ${spots}곳` : "적용할 묶음을 고르세요";
+    $("apply").disabled = chosen.length === 0;
+    $("apply").textContent = chosen.length ? `${spots}곳 적용` : "적용";
+    const checkable = vis.filter((g) => picks.get(g.id).styleId);
+    $("checkAll").checked = checkable.length > 0 && checkable.every((g) => picks.get(g.id).checked);
+    $("checkAll").disabled = checkable.length === 0;
+    $("footer").classList.toggle("on", result.groups.length > 0);
+  }
+
+  function renderSummary() {
+    const r = result;
+    const scopeName = { selection: "선택 영역", page: "이 페이지", file: "파일 전체" }[r.scope];
+    const parts = [`<b>${scopeName}</b> · 글자 레이어 ${r.texts}개 · 스타일 없는 곳 ${r.unstyled}곳 (${r.groups.length}묶음) · 이미 스타일 있음 ${r.styled}곳`];
+    if (Object.keys(r.skipped).length) parts.push(`건너뜀: ${list(r.skipped)}`);
+    parts.push(`후보 스타일 ${r.catalog.length}개`);
+    if (Object.keys(r.problems).length) parts.push(`<span class="err">${list(r.problems)}</span>`);
+    status(parts.join("<br />"));
+  }
+
+  // ── 이벤트 ────────────────────────────────────────────────
+  $("scan").onclick = () => { lastScope = scope(); post({ type: "scan", scope: lastScope, opts: opts() }); };
+  $("sizeTolerance").oninput = () => { if (result) renderList(); };
+
+  $("filters").onclick = (e) => {
+    const f = e.target.closest("button") && e.target.closest("button").dataset.f;
+    if (f) { filter = f; renderList(); }
+  };
+
+  $("list").addEventListener("change", (e) => {
+    const row = e.target.closest(".group"); if (!row) return;
+    const p = picks.get(row.dataset.id);
+    if (e.target.dataset.act === "check") p.checked = e.target.checked;
+    if (e.target.dataset.act === "style") { p.styleId = e.target.value || null; if (!p.styleId) p.checked = false; else p.checked = true; }
+    renderList();
+  });
+  $("list").addEventListener("click", (e) => {
+    if (e.target.dataset.act !== "select") return;
+    post({ type: "select", groupId: e.target.closest(".group").dataset.id });
+  });
+
+  $("checkAll").onchange = (e) => {
+    for (const g of visibleGroups()) { const p = picks.get(g.id); if (p.styleId) p.checked = e.target.checked; }
+    renderList();
+  };
+
+  $("apply").onclick = () => {
+    const plan = result.groups
+      .filter((g) => { const p = picks.get(g.id); return p.checked && p.styleId; })
+      .map((g) => ({ groupId: g.id, styleId: picks.get(g.id).styleId }));
+    post({ type: "apply", plan, opts: opts() });
+  };
+
+  onmessage = (e) => {
+    const msg = e.data.pluginMessage; if (!msg) return;
+    if (msg.type === "selection") {
+      const radio = document.querySelector('input[value="selection"]');
+      radio.disabled = msg.count === 0;
+      $("selLabel").textContent = msg.count ? `선택 영역 ${msg.count}` : "선택 영역";
+      if (msg.count === 0 && radio.checked) document.querySelector('input[value="page"]').checked = true;
+      if (msg.count > 0 && !result) radio.checked = true;
+    } else if (msg.type === "busy") {
+      status(esc(msg.text)); $("scan").disabled = true; $("apply").disabled = true;
+    } else if (msg.type === "scan-result") {
+      $("scan").disabled = false;
+      result = msg.result;
+      picks.clear();
+      for (const g of result.groups) picks.set(g.id, { styleId: g.suggestion, checked: !!g.suggestion && (g.confidence === "exact" || g.confidence === "near") });
+      if (filter !== "all" && !result.groups.some((g) => currentConf(g) === filter)) filter = "all";
+      renderSummary();
+      renderList();
+    } else if (msg.type === "apply-result") {
+      const failed = Object.values(msg.result.failed).reduce((a, b) => a + b, 0);
+      const note = `${msg.result.done}곳에 스타일을 붙였습니다${failed ? ` · <span class="err">실패 ${failed}곳: ${list(msg.result.failed)}</span>` : ""}. 되돌리려면 Cmd+Z. 다시 찾는 중…`;
+      status(note);
+      post({ type: "scan", scope: lastScope, opts: opts() });
+    } else if (msg.type === "error") {
+      $("scan").disabled = false;
+      status(`<span class="err">오류: ${esc(msg.text)}</span>`);
+      if (result) renderFooter();
+    }
+  };
+</script>
+</body>
+</html>

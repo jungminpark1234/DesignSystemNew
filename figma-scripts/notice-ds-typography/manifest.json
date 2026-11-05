@@ -1,0 +1,12 @@
+{
+  "name": "DS 텍스트 스타일 적용 (Pretendard)",
+  "id": "runway-notice-ds-typography",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "menu": [
+    { "name": "1. 미리 보기 (바꾸지 않음)", "command": "preview" },
+    { "name": "2. 적용", "command": "apply" }
+  ]
+}

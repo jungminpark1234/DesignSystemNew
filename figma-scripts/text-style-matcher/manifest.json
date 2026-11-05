@@ -1,0 +1,10 @@
+{
+  "name": "텍스트 스타일 맞추기",
+  "id": "runway-text-style-matcher",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}
