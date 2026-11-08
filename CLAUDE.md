@@ -35,10 +35,33 @@ You must source all values from these locations:
 
 ---
 
+# PRD 로 데모를 만들 때 — 여섯 질문 (MANDATORY)
+
+PRD 를 받아 화면을 만들 때는 **코드를 쓰기 전에** 아래 여섯 질문에 답하고, 만든 뒤 **보여 주기 전에** 같은 질문으로 브라우저에서 다시 본다. AI 는 이 질문을 스스로 꺼내지 않으므로 건너뛰지 않는다.
+
+| # | 질문 | 원칙 |
+|---|------|------|
+| ① | 사용자가 이 화면에서 실제로 무엇을 보는가 | 목표에 집중 |
+| ② | 사용자가 어떤 환경에서 일하는가 | 맥락에 맞게 |
+| ③ | 무엇을 먼저 봐야 하는가 | 가치 먼저 |
+| ④ | 주요 CTA 를 누르면 어떤 일이 생기는가 | 예측 가능성, 사용자 선택 |
+| ⑤ | 불필요한 요소를 왜 빼야 하는가 | 목표에 집중 |
+| ⑥ | 같아야 할 요소를 어떻게 일관되게 보이게 하는가 | 예측 가능성 |
+
+1. PRD 원문을 읽고 여섯 질문에 답한다. 답마다 근거(`PRD §x` · `AC-n` · `Slack 날짜`)를 달고, 없으면 `추정` 이라 적는다
+2. 답을 표로 먼저 보여 준다. `추정` 인 답이 화면 구조를 바꾸면 확인받고 만든다
+3. 만든 뒤 브라우저에서 점검한다 — ② 1280 · 1920 두 폭, ④ 주요 버튼을 눌러 결과 확인, ⑤ 내가 더한 배지 · 배너 · 설명 문구마다 ①~④ 중 무엇을 돕는지 적고 못 적으면 뺀다
+4. 에이전트에게 화면 작업을 맡길 때는 이 여섯 질문과 아래 문서 경로를 지시에 넣는다
+
+질문별 기준 · 이 제품의 예시 · 보고 형식은 design-system-demo 레포의 `docs/ai/prd-to-screen.md` 에 있다. 레포 위치는 `.claude/launch.json` 의 후보 경로와 같다 (이 머신은 `../../design-system-demo`).
+
+---
+
 # Workflow (MANDATORY)
 
 You MUST follow this order when generating UI:
 
+0. **Answer the six PRD questions** above before writing code
 1. **Select a reference page** from `demo/src/pages/` as layout reference
 2. **Identify required components** from `src/components/`
 3. **Apply correct variants and props** per component API
