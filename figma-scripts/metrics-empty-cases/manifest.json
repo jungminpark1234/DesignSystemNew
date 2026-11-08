@@ -1,0 +1,9 @@
+{
+  "name": "지표 · 값이 없을 때 케이스 정리 (LLM Gateway)",
+  "id": "runway-metrics-empty-cases",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}
